@@ -8,17 +8,19 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@spm/db/*": ["../../packages/db/*"],
-      "@spm/auth/*": ["../../packages/auth/*"],
-      "@spm/utils/*": ["../../packages/utils/*"]
-    },
-    "composite": true
+      "@spm/db": ["../../packages/db/dist/index"],
+      "@spm/db/*": ["../../packages/db/dist/*"],
+      "@spm/auth": ["../../packages/auth/dist/index"],
+      "@spm/auth/*": ["../../packages/auth/dist/*"],
+      "@spm/utils": ["../../packages/utils/dist/index"],
+      "@spm/utils/*": ["../../packages/utils/dist/*"]
+    }
   },
-  "include": [
-    "src/**/*",
-    "../../packages/db/**/*",
-    "../../packages/auth/**/*",
-    "../../packages/utils/**/*"
-  ],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    { "path": "../../packages/db" },
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/utils" }
+  ]
 }

@@ -8,12 +8,17 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@spm/db": ["../../packages/db/index.ts"],
-      "@spm/auth": ["../../packages/auth/index.ts"],
-      "@spm/utils": ["../../packages/utils/index.ts"]
-    }
+      "@spm/db/*": ["../../packages/db/*"],
+      "@spm/auth/*": ["../../packages/auth/*"],
+      "@spm/utils/*": ["../../packages/utils/*"]
+    },
+    "composite": true
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*",
+    "../../packages/db/**/*",
+    "../../packages/auth/**/*",
+    "../../packages/utils/**/*"
+  ],
   "exclude": ["node_modules", "dist"]
 }
-

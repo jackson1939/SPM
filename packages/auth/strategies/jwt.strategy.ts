@@ -1,3 +1,8 @@
 // Estrategia JWT
 // Implementación pendiente
 
+// Exportar placeholder para que sea un módulo válido
+export const jwtStrategy = {
+  // Implementación pendiente
+};
+

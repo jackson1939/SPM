@@ -5,7 +5,13 @@
     "rootDir": "./src",
     "module": "commonjs",
     "moduleResolution": "node",
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@spm/db": ["../../packages/db/index.ts"],
+      "@spm/auth": ["../../packages/auth/index.ts"],
+      "@spm/utils": ["../../packages/utils/index.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

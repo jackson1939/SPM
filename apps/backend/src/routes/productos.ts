@@ -1,6 +1,6 @@
 // apps/backend/src/routes/productos.ts
 import { Router } from "express";
-import { db } from "../../../packages/db"; // conexión Prisma
+import { db } from "@spm/db"; // conexión Prisma
 
 const router = Router();
 

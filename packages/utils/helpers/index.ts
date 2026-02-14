@@ -1,0 +1,3 @@
+// Funciones auxiliares
+// Implementación pendiente
+

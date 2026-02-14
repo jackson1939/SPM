@@ -1,0 +1,3 @@
+// Validaciones comunes
+// Implementación pendiente
+

@@ -1,5 +1,5 @@
 // apps/frontend/pages/compras.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
@@ -360,22 +360,46 @@ export default function ComprasPage() {
 
   // Calcular totales - usar todas las compras para estadísticas generales
   // El monto total debe reflejar todas las compras, no solo las filtradas por fecha
-  const totalCompras = compras.reduce((acc, c) => {
-    const total = (c as any).total || ((c.cantidad || 0) * (c.costo_unitario || 0));
-    return acc + (isNaN(total) ? 0 : total);
-  }, 0);
+  const totalCompras = useMemo(() => {
+    const total = compras.reduce((acc, c) => {
+      const compraTotal = (c as any).total || ((c.cantidad || 0) * (c.costo_unitario || 0));
+      return acc + (isNaN(compraTotal) ? 0 : compraTotal);
+    }, 0);
+    console.log("[ComprasPage] Calculando totalCompras:", {
+      numCompras: compras.length,
+      compras: compras.map(c => ({
+        id: c.id,
+        cantidad: c.cantidad,
+        costo: c.costo_unitario,
+        total: (c as any).total || (c.cantidad * c.costo_unitario)
+      })),
+      totalCalculado: total
+    });
+    return total;
+  }, [compras]);
   
   // Total de compras aprobadas (todas, no solo filtradas)
-  const comprasAprobadas = compras.filter(c => c.estado === "aprobada").length;
+  const comprasAprobadas = useMemo(() => {
+    const aprobadas = compras.filter(c => c.estado === "aprobada").length;
+    console.log("[ComprasPage] Calculando comprasAprobadas:", {
+      totalCompras: compras.length,
+      aprobadas,
+      estados: compras.map(c => ({ id: c.id, estado: c.estado }))
+    });
+    return aprobadas;
+  }, [compras]);
   
   // Total de compras (todas)
   const totalComprasCount = compras.length;
   
   // Monto total filtrado por fecha (para mostrar en la tarjeta si hay filtro)
-  const montoTotalFiltrado = comprasPorFecha.reduce((acc, c) => {
-    const total = (c as any).total || ((c.cantidad || 0) * (c.costo_unitario || 0));
-    return acc + (isNaN(total) ? 0 : total);
-  }, 0);
+  const montoTotalFiltrado = useMemo(() => {
+    const total = comprasPorFecha.reduce((acc, c) => {
+      const compraTotal = (c as any).total || ((c.cantidad || 0) * (c.costo_unitario || 0));
+      return acc + (isNaN(compraTotal) ? 0 : compraTotal);
+    }, 0);
+    return total;
+  }, [comprasPorFecha]);
   const productoSeleccionado = productos.find(p => p.id === productoId);
 
   const getEstadoBadge = (estado: string) => {

@@ -337,33 +337,58 @@ export default async function handler(
           db, productoIdFinal, productoNombre, cantidadNum, costoNum, totalCompra
         );
         compraRegistrada = true;
-        console.log(`[API Compras POST] Compra insertada exitosamente:`, compraRes?.rows?.[0]);
+        console.log(`[API Compras POST] ✅ Compra insertada exitosamente:`, compraRes?.rows?.[0]);
+        
+        // Verificar que la compra se guardó correctamente haciendo un SELECT
+        if (compraRes?.rows?.[0]?.id) {
+          const compraVerificada = await db.query(
+            "SELECT * FROM compras WHERE id = $1",
+            [compraRes.rows[0].id]
+          );
+          console.log(`[API Compras POST] ✅ Verificación: Compra encontrada en BD:`, compraVerificada.rows[0]);
+        }
       } catch (err: any) {
-        console.error("[API Compras POST] Error al insertar compra en BD:", err);
-        // Continuar aunque falle - el stock ya se actualizó
+        console.error("[API Compras POST] ❌ Error al insertar compra en BD:", err);
+        console.error("[API Compras POST] Detalles del error:", {
+          code: err.code,
+          message: err.message,
+          detail: err.detail,
+          hint: err.hint
+        });
+        // NO continuar si falla - necesitamos saber por qué falla
+        return res.status(500).json({
+          error: "Error al guardar la compra en la base de datos",
+          message: err.message,
+          code: err.code,
+          details: process.env.NODE_ENV === "development" ? {
+            detail: err.detail,
+            hint: err.hint
+          } : undefined
+        });
+      }
+
+      // Si no se pudo insertar, retornar error
+      if (!compraRegistrada || !compraRes?.rows?.[0]) {
+        console.error("[API Compras POST] ❌ No se pudo insertar la compra");
+        return res.status(500).json({
+          error: "No se pudo guardar la compra en la base de datos",
+          message: "La compra no se pudo registrar aunque el stock se actualizó"
+        });
       }
 
       // Respuesta con los datos de la compra
-      const compraConProducto = compraRes?.rows?.[0] 
-        ? {
-            ...compraRes.rows[0],
-            producto: productoNombre,
-            producto_id: productoIdFinal,
-            costo_unitario: costoNum,
-            total: totalCompra
-          }
-        : {
-            id: Date.now(),
-            producto: productoNombre,
-            producto_id: productoIdFinal,
-            cantidad: cantidadNum,
-            costo_unitario: costoNum,
-            total: totalCompra,
-            estado: "aprobada",
-            fecha: new Date().toISOString().split("T")[0],
-            _stockActualizado: true // Indicador de que el stock sí se actualizó
-          };
+      const compraConProducto = {
+        ...compraRes.rows[0],
+        producto: productoNombre,
+        producto_id: productoIdFinal,
+        cantidad: cantidadNum,
+        costo_unitario: costoNum,
+        total: parseFloat(compraRes.rows[0].total) || totalCompra,
+        estado: compraRes.rows[0].estado || "aprobada",
+        fecha: compraRes.rows[0].fecha || new Date().toISOString().split("T")[0]
+      };
 
+      console.log(`[API Compras POST] ✅ Devolviendo compra:`, compraConProducto);
       return res.status(201).json(compraConProducto);
     }
 

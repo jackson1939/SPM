@@ -1,5 +1,5 @@
 -- apps/backend/db/schema.sql
--- Script de inicialización de la base de datos para VEROKAI POS
+-- Script de inicialización de la base de datos para VEROKAI POS - VERSIÓN CORREGIDA
 
 -- Eliminar tablas si existen (usar con precaución)
 DROP TABLE IF EXISTS ventas CASCADE;
@@ -53,14 +53,15 @@ CREATE TABLE ventas (
 );
 
 -- ========================================
--- TABLA: compras
+-- TABLA: compras - VERSIÓN CORREGIDA
 -- ========================================
 CREATE TABLE compras (
   id SERIAL PRIMARY KEY,
-  producto VARCHAR(255) NOT NULL,
+  producto_id INTEGER REFERENCES productos(id) ON DELETE SET NULL,  -- ✅ Relación con productos
+  producto VARCHAR(255) NOT NULL,  -- ✅ Nombre del producto (para cuando no hay producto_id)
   cantidad INTEGER NOT NULL CHECK (cantidad > 0),
   costo_unitario DECIMAL(10, 2) NOT NULL CHECK (costo_unitario >= 0),
-  total DECIMAL(10, 2) NOT NULL,
+  total DECIMAL(10, 2) GENERATED ALWAYS AS (cantidad * costo_unitario) STORED,  -- ✅ Calculado automáticamente
   estado VARCHAR(20) DEFAULT 'aprobada' CHECK (estado IN ('aprobada', 'pendiente', 'rechazada')),
   fecha DATE DEFAULT CURRENT_DATE,
   proveedor VARCHAR(255),
@@ -75,10 +76,12 @@ CREATE TABLE compras (
 CREATE INDEX idx_productos_nombre ON productos(nombre);
 CREATE INDEX idx_productos_codigo_barras ON productos(codigo_barras);
 CREATE INDEX idx_productos_categoria ON productos(categoria_id);
+CREATE INDEX idx_productos_activo ON productos(activo);
 CREATE INDEX idx_ventas_fecha ON ventas(fecha);
 CREATE INDEX idx_ventas_producto ON ventas(producto_id);
 CREATE INDEX idx_compras_fecha ON compras(fecha);
 CREATE INDEX idx_compras_estado ON compras(estado);
+CREATE INDEX idx_compras_producto ON compras(producto_id);  -- ✅ Nuevo índice
 
 -- ========================================
 -- TRIGGERS para actualizar updated_at
@@ -105,6 +108,31 @@ CREATE TRIGGER update_compras_updated_at
   BEFORE UPDATE ON compras
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- ========================================
+-- TRIGGER: Actualizar stock cuando se aprueba una compra
+-- ========================================
+CREATE OR REPLACE FUNCTION actualizar_stock_por_compra()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Solo actualizar si la compra está aprobada y tiene producto_id
+  IF NEW.estado = 'aprobada' AND NEW.producto_id IS NOT NULL THEN
+    -- Actualizar stock del producto
+    UPDATE productos
+    SET stock = stock + NEW.cantidad,
+        costo = NEW.costo_unitario,  -- Actualizar costo también
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = NEW.producto_id;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_actualizar_stock_compra
+  AFTER INSERT ON compras
+  FOR EACH ROW
+  EXECUTE FUNCTION actualizar_stock_por_compra();
 
 -- ========================================
 -- DATOS DE PRUEBA (Opcional)
@@ -138,11 +166,11 @@ INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, metodo_pago) 
   (6, 5, 1.00, 5.00, 'efectivo'),
   (10, 10, 0.50, 5.00, 'efectivo');
 
--- Compras de ejemplo
-INSERT INTO compras (producto, cantidad, costo_unitario, total, estado, proveedor) VALUES
-  ('Coca Cola 2L', 50, 1.50, 75.00, 'aprobada', 'Distribuidora FEMSA'),
-  ('Papas Lays Original', 100, 1.00, 100.00, 'aprobada', 'Sabritas SA'),
-  ('Detergente Ace', 30, 2.80, 84.00, 'aprobada', 'Procter & Gamble');
+-- Compras de ejemplo (✅ AHORA CON producto_id)
+INSERT INTO compras (producto_id, producto, cantidad, costo_unitario, estado, proveedor) VALUES
+  (1, 'Coca Cola 2L', 50, 1.50, 'aprobada', 'Distribuidora FEMSA'),
+  (2, 'Papas Lays Original', 100, 1.00, 'aprobada', 'Sabritas SA'),
+  (3, 'Detergente Ace', 30, 2.80, 'aprobada', 'Procter & Gamble');
 
 -- ========================================
 -- VISTAS ÚTILES
@@ -153,6 +181,7 @@ CREATE OR REPLACE VIEW productos_bajo_stock AS
 SELECT 
   p.id,
   p.nombre,
+  p.codigo_barras,
   p.stock,
   p.stock_minimo,
   c.nombre as categoria,
@@ -179,15 +208,32 @@ CREATE OR REPLACE VIEW productos_mas_vendidos AS
 SELECT 
   p.id,
   p.nombre,
+  p.codigo_barras,
   p.precio,
   SUM(v.cantidad) as unidades_vendidas,
   SUM(v.total) as ingresos_totales,
   COUNT(v.id) as veces_vendido
 FROM productos p
 INNER JOIN ventas v ON p.id = v.producto_id
-GROUP BY p.id, p.nombre, p.precio
+GROUP BY p.id, p.nombre, p.codigo_barras, p.precio
 ORDER BY unidades_vendidas DESC
 LIMIT 10;
+
+-- ✅ NUEVA VISTA: Resumen de compras por producto
+CREATE OR REPLACE VIEW compras_por_producto AS
+SELECT 
+  p.id,
+  p.nombre,
+  p.codigo_barras,
+  COUNT(c.id) as total_compras,
+  SUM(c.cantidad) as unidades_compradas,
+  SUM(c.total) as monto_total_compras,
+  AVG(c.costo_unitario) as costo_promedio,
+  MAX(c.fecha) as ultima_compra
+FROM productos p
+LEFT JOIN compras c ON p.id = c.producto_id AND c.estado = 'aprobada'
+GROUP BY p.id, p.nombre, p.codigo_barras
+ORDER BY unidades_compradas DESC;
 
 -- ========================================
 -- FUNCIONES ÚTILES
@@ -244,26 +290,99 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Función para registrar una compra
+-- ✅ FUNCIÓN MEJORADA: Registrar compra con soporte para productos nuevos
 CREATE OR REPLACE FUNCTION registrar_compra(
-  p_producto VARCHAR,
-  p_cantidad INTEGER,
-  p_costo_unitario DECIMAL,
+  p_producto_id INTEGER DEFAULT NULL,
+  p_nombre_producto VARCHAR DEFAULT NULL,
+  p_cantidad INTEGER DEFAULT 1,
+  p_costo_unitario DECIMAL DEFAULT 0,
+  p_precio_venta DECIMAL DEFAULT NULL,
+  p_codigo_barras VARCHAR DEFAULT NULL,
   p_proveedor VARCHAR DEFAULT NULL
-) RETURNS INTEGER AS $$
+) RETURNS TABLE (
+  compra_id INTEGER,
+  producto_id_resultado INTEGER,
+  producto_nombre VARCHAR
+) AS $$
 DECLARE
   v_compra_id INTEGER;
-  v_total DECIMAL(10,2);
+  v_producto_id INTEGER;
+  v_nombre VARCHAR(255);
+  v_precio_calculado DECIMAL(10,2);
 BEGIN
-  v_total := p_costo_unitario * p_cantidad;
+  -- Si se proporciona producto_id, usarlo directamente
+  IF p_producto_id IS NOT NULL THEN
+    SELECT id, nombre INTO v_producto_id, v_nombre
+    FROM productos
+    WHERE id = p_producto_id AND activo = TRUE;
+    
+    IF v_producto_id IS NULL THEN
+      RAISE EXCEPTION 'Producto con ID % no encontrado o inactivo', p_producto_id;
+    END IF;
   
-  INSERT INTO compras (producto, cantidad, costo_unitario, total, estado, proveedor)
-  VALUES (p_producto, p_cantidad, p_costo_unitario, v_total, 'aprobada', p_proveedor)
+  -- Si no hay producto_id pero hay nombre, buscar o crear producto
+  ELSIF p_nombre_producto IS NOT NULL THEN
+    v_nombre := p_nombre_producto;
+    
+    -- Buscar producto existente por nombre
+    SELECT id INTO v_producto_id
+    FROM productos
+    WHERE LOWER(nombre) = LOWER(p_nombre_producto)
+    LIMIT 1;
+    
+    -- Si no existe, crear nuevo producto
+    IF v_producto_id IS NULL THEN
+      -- Calcular precio de venta si no se proporciona (margen del 50%)
+      v_precio_calculado := COALESCE(p_precio_venta, p_costo_unitario * 1.5);
+      
+      INSERT INTO productos (nombre, precio, costo, stock, codigo_barras, activo)
+      VALUES (p_nombre_producto, v_precio_calculado, p_costo_unitario, 0, p_codigo_barras, TRUE)
+      RETURNING id INTO v_producto_id;
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'Debe proporcionar producto_id o nombre_producto';
+  END IF;
+  
+  -- Insertar compra (el trigger actualizará el stock automáticamente)
+  INSERT INTO compras (producto_id, producto, cantidad, costo_unitario, estado, proveedor)
+  VALUES (v_producto_id, v_nombre, p_cantidad, p_costo_unitario, 'aprobada', p_proveedor)
   RETURNING id INTO v_compra_id;
   
-  RETURN v_compra_id;
+  -- Retornar resultado
+  RETURN QUERY SELECT v_compra_id, v_producto_id, v_nombre;
 END;
 $$ LANGUAGE plpgsql;
+
+-- ========================================
+-- SCRIPT DE MIGRACIÓN (para bases existentes)
+-- ========================================
+-- Si ya tienes una base de datos existente, ejecuta esto en lugar del DROP TABLE:
+/*
+-- Agregar columna producto_id a compras existente
+ALTER TABLE compras ADD COLUMN IF NOT EXISTS producto_id INTEGER REFERENCES productos(id) ON DELETE SET NULL;
+
+-- Crear índice
+CREATE INDEX IF NOT EXISTS idx_compras_producto ON compras(producto_id);
+
+-- Modificar columna total para que sea calculada (si tu versión de PostgreSQL lo soporta)
+-- PostgreSQL 12+:
+-- ALTER TABLE compras DROP COLUMN IF EXISTS total;
+-- ALTER TABLE compras ADD COLUMN total DECIMAL(10, 2) GENERATED ALWAYS AS (cantidad * costo_unitario) STORED;
+
+-- Si no puedes usar columnas generadas, agrega un trigger:
+CREATE OR REPLACE FUNCTION calcular_total_compra()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.total := NEW.cantidad * NEW.costo_unitario;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_calcular_total_compra
+  BEFORE INSERT OR UPDATE ON compras
+  FOR EACH ROW
+  EXECUTE FUNCTION calcular_total_compra();
+*/
 
 -- ========================================
 -- PERMISOS (Opcional)

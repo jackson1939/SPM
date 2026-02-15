@@ -16,6 +16,7 @@ model Producto {
   stock         Int      @default(0)
   fecha_ingreso DateTime @default(now())
   compras       Compra[]
+  ventas        Venta[]
 
   @@map("productos")
 }
@@ -29,4 +30,18 @@ model Compra {
   producto       Producto @relation(fields: [producto_id], references: [id])
 
   @@map("compras")
+}
+
+model Venta {
+  id              Int      @id @default(autoincrement())
+  producto_id     Int
+  cantidad        Int
+  precio_unitario Float
+  total           Float
+  metodo_pago     String   @default("efectivo")
+  notas           String?
+  fecha           DateTime @default(now())
+  producto        Producto @relation(fields: [producto_id], references: [id])
+
+  @@map("ventas")
 }

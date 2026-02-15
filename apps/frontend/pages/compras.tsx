@@ -13,7 +13,8 @@ import {
   FaClock,
   FaTimesCircle,
   FaExclamationTriangle,
-  FaBox
+  FaBox,
+  FaBarcode
 } from "react-icons/fa";
 
 interface Producto {
@@ -21,6 +22,7 @@ interface Producto {
   nombre: string;
   precio: number;
   stock: number;
+  codigo_barras?: string;  // ✅ AGREGADO
 }
 
 interface Compra {
@@ -290,7 +292,8 @@ export default function ComprasPage() {
   // Filtrar productos por búsqueda
   const productosFiltrados = productos.filter((p) => 
     p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.id.toLowerCase().includes(searchTerm.toLowerCase())
+    p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.codigo_barras && p.codigo_barras.toLowerCase().includes(searchTerm.toLowerCase()))  // ✅ AGREGADO
   );
 
   // Calcular totales (usar compras filtradas)
@@ -375,7 +378,7 @@ export default function ComprasPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-600 dark:to-blue-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Total Compras</h3>
-            <p className="text-3xl font-bold mt-2">{compras.length}</p>
+            <p className="text-3xl font-bold mt-2">{comprasPorFecha.length}</p>
           </div>
           <div className="bg-gradient-to-br from-green-400 to-green-600 dark:from-green-600 dark:to-green-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Aprobadas</h3>
@@ -418,7 +421,7 @@ export default function ComprasPage() {
                       <FaSearch className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500" />
                       <input
                         type="text"
-                        placeholder="Buscar por nombre o ID..."
+                        placeholder="Buscar por nombre, código de barras o ID..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
@@ -427,7 +430,7 @@ export default function ComprasPage() {
                   </div>
                 )}
 
-                {/* Selector de producto del inventario */}
+                {/* Selector de producto del inventario - ✅ MEJORADO CON CÓDIGO DE BARRAS */}
                 {productos.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -447,20 +450,27 @@ export default function ComprasPage() {
                       <option value="">Selecciona un producto</option>
                       {productosFiltrados.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.nombre} - Stock actual: {p.stock}
+                          {p.codigo_barras ? `[${p.codigo_barras}] ` : ''}
+                          {p.nombre} - Stock: {p.stock}
                         </option>
                       ))}
                     </select>
                   </div>
                 )}
 
-                {/* Información del producto seleccionado */}
+                {/* Información del producto seleccionado - ✅ MEJORADO CON CÓDIGO DE BARRAS */}
                 {productoSeleccionado && (
                   <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-2">
                     <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
                       <FaBox />
                       <span className="text-sm font-medium">{productoSeleccionado.nombre}</span>
                     </div>
+                    {productoSeleccionado.codigo_barras && (
+                      <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                        <FaBarcode />
+                        <span className="text-xs font-mono">{productoSeleccionado.codigo_barras}</span>
+                      </div>
+                    )}
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       Stock actual: <span className="font-semibold">{productoSeleccionado.stock} unidades</span>
                     </p>
@@ -511,13 +521,16 @@ export default function ComprasPage() {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Código de Barras (opcional)
                       </label>
-                      <input
-                        type="text"
-                        placeholder="Código de barras"
-                        value={codigoBarras}
-                        onChange={(e) => setCodigoBarras(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
-                      />
+                      <div className="relative">
+                        <FaBarcode className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500" />
+                        <input
+                          type="text"
+                          placeholder="Código de barras"
+                          value={codigoBarras}
+                          onChange={(e) => setCodigoBarras(e.target.value)}
+                          className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

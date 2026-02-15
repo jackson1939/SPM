@@ -159,3 +159,4 @@ curl -X POST http://localhost:3000/api/productos \
 - [ ] API de productos funciona (GET y POST)
 - [ ] Página de productos carga y muestra datos correctamente
 
+

@@ -1,16 +1,89 @@
+/* apps/frontend/styles/globals.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Configuración del modo oscuro */
+html.dark {
+  color-scheme: dark;
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 dark:bg-gray-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500 dark:bg-gray-500;
+}
+
+/* Animaciones personalizadas */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Transiciones suaves para el modo oscuro */
 * {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
 }
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
+/* Evitar transiciones en elementos específicos */
+input, textarea, select {
+  transition-property: border-color, box-shadow;
 }
 
+/* Estilos base */
 body {
+  @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
@@ -18,3 +91,137 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Mejoras de accesibilidad */
+.focus-visible:focus {
+  @apply outline-none ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900;
+}
+
+/* Estilos para inputs con mejor contraste en modo oscuro */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  @apply dark:placeholder-gray-500;
+}
+
+/* Sombras optimizadas para modo oscuro */
+.shadow-lg {
+  @apply dark:shadow-2xl;
+}
+
+/* Cards con mejor contraste */
+.card {
+  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md;
+}
+
+/* Botones base */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg;
+}
+
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white;
+}
+
+.btn-secondary {
+  @apply bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white;
+}
+
+.btn-success {
+  @apply bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white;
+}
+
+.btn-danger {
+  @apply bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 text-white;
+}
+
+/* Overlay para modales */
+.overlay {
+  @apply fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 backdrop-blur-sm z-40;
+}
+
+/* Loading spinner */
+.spinner {
+  @apply animate-spin rounded-full border-b-2 border-blue-600 dark:border-blue-400;
+}
+
+/* Badge styles */
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-success {
+  @apply bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400;
+}
+
+.badge-warning {
+  @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400;
+}
+
+.badge-danger {
+  @apply bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400;
+}
+
+.badge-info {
+  @apply bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400;
+}
+
+/* Glassmorphism effect */
+.glass {
+  @apply bg-white/80 dark:bg-gray-800/80 backdrop-blur-md;
+}
+
+/* Zebra striping para tablas */
+.zebra-striping tbody tr:nth-child(even) {
+  @apply bg-gray-50 dark:bg-gray-700/30;
+}
+
+/* Hover effects mejorados */
+.hover-lift {
+  @apply transition-transform duration-200 hover:-translate-y-1;
+}
+
+.hover-scale {
+  @apply transition-transform duration-200 hover:scale-105;
+}
+
+/* Gradientes personalizados */
+.gradient-primary {
+  @apply bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700;
+}
+
+.gradient-success {
+  @apply bg-gradient-to-r from-green-500 to-green-600 dark:from-green-600 dark:to-green-700;
+}
+
+.gradient-danger {
+  @apply bg-gradient-to-r from-red-500 to-red-600 dark:from-red-600 dark:to-red-700;
+}
+
+/* Text gradient */
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-500;
+}
+
+/* Divider */
+.divider {
+  @apply border-t border-gray-200 dark:border-gray-700;
+}
+
+/* Container responsive */
+.container-custom {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    @apply bg-white text-black;
+  }
+}

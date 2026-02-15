@@ -264,6 +264,71 @@ export default function ProductosPage() {
           </div>
         </div>
 
+        {/* Panel de Alertas de Stock Bajo */}
+        {(stockBajo > 0 || agotados > 0) && (
+          <div className="space-y-4">
+            {/* Productos Agotados */}
+            {agotados > 0 && (
+              <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <FaTimesCircle className="text-red-500 dark:text-red-400 text-xl flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-bold text-red-800 dark:text-red-300 mb-2">
+                      ⚠️ Productos Agotados ({agotados})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {productos
+                        .filter((p) => p.stock === 0)
+                        .map((p) => (
+                          <div
+                            key={p.id}
+                            className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800"
+                          >
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white text-sm">{p.nombre}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{p.codigo_barras}</p>
+                            </div>
+                            <span className="text-red-600 dark:text-red-400 font-bold text-sm">0</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Productos con Stock Bajo */}
+            {stockBajo > 0 && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <FaExclamationTriangle className="text-yellow-500 dark:text-yellow-400 text-xl flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-bold text-yellow-800 dark:text-yellow-300 mb-2">
+                      ⚠️ Stock Bajo ({stockBajo}) - Menos de 5 unidades
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {productos
+                        .filter((p) => p.stock > 0 && p.stock <= 5)
+                        .map((p) => (
+                          <div
+                            key={p.id}
+                            className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-yellow-200 dark:border-yellow-800"
+                          >
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white text-sm">{p.nombre}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{p.codigo_barras}</p>
+                            </div>
+                            <span className="text-yellow-600 dark:text-yellow-400 font-bold text-sm">{p.stock}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Formulario */}
           <div className="lg:col-span-1">

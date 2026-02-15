@@ -82,25 +82,37 @@ export default function ComprasPage() {
     }
   };
 
+  const [loadingCompras, setLoadingCompras] = useState(true);
+  const [errorCompras, setErrorCompras] = useState<string | null>(null);
+
   const cargarCompras = async () => {
     try {
+      setLoadingCompras(true);
+      setErrorCompras(null);
       const res = await fetch("/api/compras");
       if (res.ok) {
         const data = await res.json();
-        // Formatear compras para el estado local
+        // Formatear compras para el estado local, manejando valores nulos/undefined
         const comprasFormateadas = data.map((c: any) => ({
-          id: String(c.id),
-          producto: c.producto || "",
-          producto_id: String(c.producto_id),
-          cantidad: c.cantidad,
-          costo_unitario: parseFloat(c.costo_unitario),
+          id: String(c.id || ""),
+          producto: c.producto || c.nombre_producto || "Sin nombre",
+          producto_id: c.producto_id ? String(c.producto_id) : "",
+          cantidad: parseInt(c.cantidad) || 0,
+          costo_unitario: parseFloat(c.costo_unitario) || 0,
           fecha: c.fecha ? new Date(c.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-          estado: "aprobada" as const,
+          estado: (c.estado || "aprobada") as "aprobada" | "pendiente" | "rechazada",
         }));
         setCompras(comprasFormateadas);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        console.error("Error respuesta API compras:", errorData);
+        setErrorCompras(errorData.error || "Error al cargar compras. Ejecuta el script de migración en Neon.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al cargar compras:", error);
+      setErrorCompras("Error de conexión al cargar compras");
+    } finally {
+      setLoadingCompras(false);
     }
   };
 
@@ -297,8 +309,11 @@ export default function ComprasPage() {
     (p.codigo_barras && p.codigo_barras.toLowerCase().includes(searchProducto.toLowerCase()))
   );
 
-  // Calcular totales (usar compras filtradas)
-  const totalCompras = comprasPorFecha.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0);
+  // Calcular totales (usar compras filtradas, manejar NaN)
+  const totalCompras = comprasPorFecha.reduce((acc, c) => {
+    const subtotal = (c.cantidad || 0) * (c.costo_unitario || 0);
+    return acc + (isNaN(subtotal) ? 0 : subtotal);
+  }, 0);
   const comprasAprobadas = comprasPorFecha.filter(c => c.estado === "aprobada").length;
   const productoSeleccionado = productos.find(p => p.id === productoId);
 
@@ -375,19 +390,53 @@ export default function ComprasPage() {
           </div>
         )}
 
+        {/* Mensaje de error si falla la carga de compras */}
+        {errorCompras && (
+          <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-lg">
+            <div className="flex items-start gap-3">
+              <FaExclamationTriangle className="text-red-500 dark:text-red-400 text-xl flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-800 dark:text-red-300">Error al cargar compras</p>
+                <p className="text-red-700 dark:text-red-400 text-sm">{errorCompras}</p>
+                <p className="text-red-600 dark:text-red-500 text-xs mt-2">
+                  Ejecuta el script SQL en Neon Console: <code className="bg-red-100 dark:bg-red-900 px-1 rounded">scripts/fix-compras-table.sql</code>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Estadísticas rápidas */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-600 dark:to-blue-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Total Compras</h3>
-            <p className="text-3xl font-bold mt-2">{comprasPorFecha.length}</p>
+            <p className="text-3xl font-bold mt-2">
+              {loadingCompras ? (
+                <span className="animate-pulse">...</span>
+              ) : (
+                comprasPorFecha.length
+              )}
+            </p>
           </div>
           <div className="bg-gradient-to-br from-green-400 to-green-600 dark:from-green-600 dark:to-green-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Aprobadas</h3>
-            <p className="text-3xl font-bold mt-2">{comprasAprobadas}</p>
+            <p className="text-3xl font-bold mt-2">
+              {loadingCompras ? (
+                <span className="animate-pulse">...</span>
+              ) : (
+                comprasAprobadas
+              )}
+            </p>
           </div>
           <div className="bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-600 dark:to-purple-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Monto Total {filtroFecha !== "todos" && `(${filtroFecha === "hoy" ? "Hoy" : "Este Mes"})`}</h3>
-            <p className="text-3xl font-bold mt-2">${totalCompras.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <p className="text-3xl font-bold mt-2">
+              {loadingCompras ? (
+                <span className="animate-pulse">...</span>
+              ) : (
+                `$${totalCompras.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              )}
+            </p>
           </div>
           <div className="bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-600 dark:to-orange-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Productos</h3>

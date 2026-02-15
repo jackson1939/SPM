@@ -243,7 +243,9 @@ export default function VentasPage() {
     }
   };
 
-  const handleCompletarVenta = () => {
+  const [procesandoVenta, setProcesandoVenta] = useState(false);
+
+  const handleCompletarVenta = async () => {
     if (carrito.length === 0) {
       alert("⚠️ El carrito está vacío");
       return;
@@ -254,12 +256,49 @@ export default function VentasPage() {
       return;
     }
 
-    setVentaCompletada(true);
-    setTimeout(() => {
-      setCarrito([]);
-      setPago(0);
-      setVentaCompletada(false);
-    }, 3000);
+    setProcesandoVenta(true);
+
+    try {
+      // Preparar items para el API
+      const items = carrito.map((item) => ({
+        producto_id: item.codigo_barras.startsWith("MANUAL-") ? null : item.id,
+        nombre: item.nombre,
+        cantidad: item.cantidad,
+        precio_unitario: item.precio,
+      }));
+
+      const res = await fetch("/api/ventas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items,
+          metodo_pago: "efectivo",
+          monto_pagado: pago,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        console.log("Venta registrada:", data);
+        setVentaCompletada(true);
+        
+        setTimeout(() => {
+          setCarrito([]);
+          setPago(0);
+          setVentaCompletada(false);
+          // Recargar productos para reflejar el stock actualizado
+          cargarProductos();
+        }, 3000);
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Error al registrar venta");
+      }
+    } catch (err: any) {
+      console.error("Error al completar venta:", err);
+      alert(`❌ Error al completar venta: ${err.message}`);
+    } finally {
+      setProcesandoVenta(false);
+    }
   };
 
   const handleLimpiarCarrito = () => {
@@ -544,11 +583,20 @@ export default function VentasPage() {
 
                 <button
                   onClick={handleCompletarVenta}
-                  disabled={carrito.length === 0 || pago < total}
+                  disabled={carrito.length === 0 || pago < total || procesandoVenta}
                   className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 dark:from-green-600 dark:to-green-700 dark:hover:from-green-700 dark:hover:to-green-800 text-white py-4 px-4 rounded-lg font-bold text-lg shadow-md hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <FaReceipt />
-                  Completar Venta
+                  {procesandoVenta ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <FaReceipt />
+                      Completar Venta
+                    </>
+                  )}
                 </button>
               </div>
             </div>

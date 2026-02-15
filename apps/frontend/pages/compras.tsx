@@ -46,7 +46,8 @@ export default function ComprasPage() {
   const [codigoBarras, setCodigoBarras] = useState("");
   const [precioVenta, setPrecioVenta] = useState(0);
   const [crearNuevoProducto, setCrearNuevoProducto] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchProducto, setSearchProducto] = useState(""); // Búsqueda para selector de productos
+  const [searchHistorial, setSearchHistorial] = useState(""); // Búsqueda para historial de compras
   const [filterEstado, setFilterEstado] = useState<string>("todos");
   const [filtroFecha, setFiltroFecha] = useState<"todos" | "hoy" | "mes">("todos");
   
@@ -282,18 +283,18 @@ export default function ComprasPage() {
     return true;
   });
 
-  // Filtrar compras
+  // Filtrar compras por historial
   const comprasFiltradas = comprasPorFecha.filter((compra) => {
-    const matchesSearch = compra.producto.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = compra.producto.toLowerCase().includes(searchHistorial.toLowerCase());
     const matchesEstado = filterEstado === "todos" || compra.estado === filterEstado;
     return matchesSearch && matchesEstado;
   });
 
-  // Filtrar productos por búsqueda
+  // Filtrar productos por búsqueda (para el selector de productos)
   const productosFiltrados = productos.filter((p) => 
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.codigo_barras && p.codigo_barras.toLowerCase().includes(searchTerm.toLowerCase()))  // ✅ AGREGADO
+    p.nombre.toLowerCase().includes(searchProducto.toLowerCase()) ||
+    p.id.toLowerCase().includes(searchProducto.toLowerCase()) ||
+    (p.codigo_barras && p.codigo_barras.toLowerCase().includes(searchProducto.toLowerCase()))
   );
 
   // Calcular totales (usar compras filtradas)
@@ -422,8 +423,8 @@ export default function ComprasPage() {
                       <input
                         type="text"
                         placeholder="Buscar por nombre, código de barras o ID..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        value={searchProducto}
+                        onChange={(e) => setSearchProducto(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
                       />
                     </div>
@@ -686,8 +687,8 @@ export default function ComprasPage() {
                     <input
                       type="text"
                       placeholder="Buscar producto en compras..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      value={searchHistorial}
+                      onChange={(e) => setSearchHistorial(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
                     />
                   </div>

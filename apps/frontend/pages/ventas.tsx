@@ -1,5 +1,5 @@
 // apps/frontend/pages/ventas.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
@@ -14,10 +14,13 @@ import {
   FaCheckCircle,
   FaPlus,
   FaMinus,
-  FaReceipt
+  FaReceipt,
+  FaEdit,
+  FaSearch
 } from "react-icons/fa";
 
 interface Producto {
+  id: number;
   codigo_barras: string;
   nombre: string;
   precio: number;
@@ -29,100 +32,215 @@ interface ItemCarrito extends Producto {
 }
 
 export default function VentasPage() {
-  const [productos, setProductos] = useState<Producto[]>([
-    { codigo_barras: "111", nombre: "Coca Cola", precio: 10, stock: 5 },
-    { codigo_barras: "222", nombre: "Pan", precio: 5, stock: 10 },
-    { codigo_barras: "333", nombre: "Leche", precio: 8, stock: 3 },
-  ]);
-
+  const [productos, setProductos] = useState<Producto[]>([]);
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [codigo, setCodigo] = useState("");
   const [pago, setPago] = useState(0);
   const [ventaCompletada, setVentaCompletada] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Estados para entrada manual
+  const [mostrarManual, setMostrarManual] = useState(false);
+  const [productoManual, setProductoManual] = useState({ nombre: "", precio: 0 });
+  
+  // Estado para sugerencias de búsqueda
+  const [sugerencias, setSugerencias] = useState<Producto[]>([]);
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+
+  // Cargar productos desde la API
+  useEffect(() => {
+    cargarProductos();
+  }, []);
+
+  const cargarProductos = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/productos");
+      if (res.ok) {
+        const data = await res.json();
+        const productosFormateados = data.map((p: any) => ({
+          id: p.id,
+          codigo_barras: p.codigo_barras || `AUTO-${p.id}`,
+          nombre: p.nombre,
+          precio: parseFloat(p.precio) || 0,
+          stock: parseInt(p.stock) || 0,
+        }));
+        setProductos(productosFormateados);
+      } else {
+        throw new Error("Error al cargar productos");
+      }
+    } catch (err: any) {
+      console.error("Error al cargar productos:", err);
+      setError("Error al cargar productos. Por favor, recarga la página.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Buscar sugerencias mientras escribe
+  const handleBuscarProducto = (valor: string) => {
+    setCodigo(valor);
+    
+    if (valor.length >= 1) {
+      const coincidencias = productos.filter((p) => 
+        p.codigo_barras?.toLowerCase().includes(valor.toLowerCase()) ||
+        p.nombre.toLowerCase().includes(valor.toLowerCase())
+      ).slice(0, 5); // Limitar a 5 sugerencias
+      
+      setSugerencias(coincidencias);
+      setMostrarSugerencias(coincidencias.length > 0);
+    } else {
+      setSugerencias([]);
+      setMostrarSugerencias(false);
+    }
+  };
+
+  // Seleccionar producto de las sugerencias
+  const handleSeleccionarSugerencia = (producto: Producto) => {
+    agregarProductoAlCarrito(producto);
+    setCodigo("");
+    setSugerencias([]);
+    setMostrarSugerencias(false);
+  };
+
+  // Agregar producto al carrito
+  const agregarProductoAlCarrito = (producto: Producto) => {
+    if (producto.stock <= 0) {
+      alert(`⚠️ El producto ${producto.nombre} está agotado`);
+      return;
+    }
+
+    // Verificar si el producto ya está en el carrito
+    const itemEnCarrito = carrito.find(
+      (item) => item.id === producto.id
+    );
+
+    if (itemEnCarrito) {
+      // Incrementar cantidad
+      setCarrito(
+        carrito.map((item) =>
+          item.id === producto.id
+            ? { ...item, cantidad: item.cantidad + 1 }
+            : item
+        )
+      );
+    } else {
+      // Agregar nuevo producto
+      setCarrito([...carrito, { ...producto, cantidad: 1 }]);
+    }
+
+    // Descontar stock localmente
+    setProductos(
+      productos.map((p) =>
+        p.id === producto.id ? { ...p, stock: p.stock - 1 } : p
+      )
+    );
+  };
 
   const handleAgregarProducto = () => {
-    const productoIndex = productos.findIndex((p) => p.codigo_barras === codigo);
+    // Buscar por código de barras exacto primero
+    let producto = productos.find((p) => p.codigo_barras === codigo);
     
-    if (productoIndex !== -1) {
-      const producto = productos[productoIndex];
-
-      if (producto.stock > 0) {
-        // Verificar si el producto ya está en el carrito
-        const itemEnCarrito = carrito.find(
-          (item) => item.codigo_barras === producto.codigo_barras
-        );
-
-        if (itemEnCarrito) {
-          // Incrementar cantidad
-          setCarrito(
-            carrito.map((item) =>
-              item.codigo_barras === producto.codigo_barras
-                ? { ...item, cantidad: item.cantidad + 1 }
-                : item
-            )
-          );
-        } else {
-          // Agregar nuevo producto
-          setCarrito([...carrito, { ...producto, cantidad: 1 }]);
-        }
-
-        // Descontar stock
-        const nuevosProductos = [...productos];
-        nuevosProductos[productoIndex].stock -= 1;
-        setProductos(nuevosProductos);
-
-        // Reset input
-        setCodigo("");
-      } else {
-        alert(`⚠️ El producto ${producto.nombre} está agotado`);
-      }
+    // Si no encuentra, buscar por nombre exacto
+    if (!producto) {
+      producto = productos.find((p) => 
+        p.nombre.toLowerCase() === codigo.toLowerCase()
+      );
+    }
+    
+    // Si aún no encuentra, buscar parcialmente por código o nombre
+    if (!producto) {
+      producto = productos.find((p) => 
+        p.codigo_barras?.toLowerCase().includes(codigo.toLowerCase()) ||
+        p.nombre.toLowerCase().includes(codigo.toLowerCase())
+      );
+    }
+    
+    if (producto) {
+      agregarProductoAlCarrito(producto);
+      setCodigo("");
+      setSugerencias([]);
+      setMostrarSugerencias(false);
     } else {
-      alert("❌ Producto no encontrado");
+      alert("❌ Producto no encontrado. Puedes agregarlo manualmente.");
     }
   };
 
-  const handleEliminarItem = (codigo_barras: string) => {
-    const item = carrito.find((i) => i.codigo_barras === codigo_barras);
+  // Agregar producto manualmente
+  const handleAgregarManual = () => {
+    if (!productoManual.nombre.trim()) {
+      alert("❌ Ingresa el nombre del producto");
+      return;
+    }
+    if (productoManual.precio <= 0) {
+      alert("❌ El precio debe ser mayor a 0");
+      return;
+    }
+
+    const productoTemp: ItemCarrito = {
+      id: Date.now(), // ID temporal
+      codigo_barras: `MANUAL-${Date.now()}`,
+      nombre: productoManual.nombre,
+      precio: productoManual.precio,
+      stock: 999, // Sin control de stock para productos manuales
+      cantidad: 1,
+    };
+
+    setCarrito([...carrito, productoTemp]);
+    setProductoManual({ nombre: "", precio: 0 });
+    setMostrarManual(false);
+  };
+
+  const handleEliminarItem = (id: number) => {
+    const item = carrito.find((i) => i.id === id);
     if (item) {
-      // Devolver stock
-      const productoIndex = productos.findIndex((p) => p.codigo_barras === codigo_barras);
-      if (productoIndex !== -1) {
-        const nuevosProductos = [...productos];
-        nuevosProductos[productoIndex].stock += item.cantidad;
-        setProductos(nuevosProductos);
+      // Devolver stock solo si no es producto manual
+      if (!item.codigo_barras.startsWith("MANUAL-")) {
+        setProductos(
+          productos.map((p) =>
+            p.id === id ? { ...p, stock: p.stock + item.cantidad } : p
+          )
+        );
       }
     }
-    setCarrito(carrito.filter((i) => i.codigo_barras !== codigo_barras));
+    setCarrito(carrito.filter((i) => i.id !== id));
   };
 
-  const handleCambiarCantidad = (codigo_barras: string, delta: number) => {
-    const item = carrito.find((i) => i.codigo_barras === codigo_barras);
-    const producto = productos.find((p) => p.codigo_barras === codigo_barras);
+  const handleCambiarCantidad = (id: number, delta: number) => {
+    const item = carrito.find((i) => i.id === id);
+    if (!item) return;
 
-    if (!item || !producto) return;
+    // Para productos manuales, no verificar stock
+    const esManual = item.codigo_barras.startsWith("MANUAL-");
+    const producto = productos.find((p) => p.id === id);
 
     const nuevaCantidad = item.cantidad + delta;
 
-    if (delta > 0 && producto.stock <= 0) {
+    if (delta > 0 && !esManual && producto && producto.stock <= 0) {
       alert("⚠️ No hay más stock disponible");
       return;
     }
 
     if (nuevaCantidad <= 0) {
-      handleEliminarItem(codigo_barras);
+      handleEliminarItem(id);
       return;
     }
 
     setCarrito(
       carrito.map((i) =>
-        i.codigo_barras === codigo_barras ? { ...i, cantidad: nuevaCantidad } : i
+        i.id === id ? { ...i, cantidad: nuevaCantidad } : i
       )
     );
 
-    const productoIndex = productos.findIndex((p) => p.codigo_barras === codigo_barras);
-    const nuevosProductos = [...productos];
-    nuevosProductos[productoIndex].stock -= delta;
-    setProductos(nuevosProductos);
+    // Actualizar stock solo para productos no manuales
+    if (!esManual && producto) {
+      setProductos(
+        productos.map((p) =>
+          p.id === id ? { ...p, stock: p.stock - delta } : p
+        )
+      );
+    }
   };
 
   const handleCompletarVenta = () => {
@@ -145,17 +263,19 @@ export default function VentasPage() {
   };
 
   const handleLimpiarCarrito = () => {
-    // Devolver todo el stock
+    // Devolver todo el stock (excepto productos manuales)
+    const stockRestaurado = [...productos];
     carrito.forEach((item) => {
-      const productoIndex = productos.findIndex(
-        (p) => p.codigo_barras === item.codigo_barras
-      );
-      if (productoIndex !== -1) {
-        const nuevosProductos = [...productos];
-        nuevosProductos[productoIndex].stock += item.cantidad;
-        setProductos(nuevosProductos);
+      if (!item.codigo_barras.startsWith("MANUAL-")) {
+        const productoIndex = stockRestaurado.findIndex(
+          (p) => p.id === item.id
+        );
+        if (productoIndex !== -1) {
+          stockRestaurado[productoIndex].stock += item.cantidad;
+        }
       }
     });
+    setProductos(stockRestaurado);
     setCarrito([]);
     setPago(0);
   };
@@ -223,24 +343,133 @@ export default function VentasPage() {
                   Escanear Producto
                 </h2>
               </div>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  placeholder="Código de barras o buscar..."
-                  value={codigo}
-                  onChange={(e) => setCodigo(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleAgregarProducto()}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 font-mono"
-                  autoFocus
-                />
-                <button
-                  onClick={handleAgregarProducto}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 dark:from-blue-600 dark:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white py-3 px-4 rounded-lg font-medium shadow-md hover:shadow-xl transition-all duration-200"
-                >
-                  <FaPlus />
-                  Agregar al Carrito
-                </button>
-              </div>
+              
+              {loading ? (
+                <div className="text-center py-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="text-gray-500 dark:text-gray-400 mt-2">Cargando productos...</p>
+                </div>
+              ) : error ? (
+                <div className="text-center py-4">
+                  <p className="text-red-500 dark:text-red-400">{error}</p>
+                  <button 
+                    onClick={cargarProductos}
+                    className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Campo de búsqueda con sugerencias */}
+                  <div className="relative">
+                    <div className="relative">
+                      <FaSearch className="absolute left-3 top-3.5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Código de barras o nombre del producto..."
+                        value={codigo}
+                        onChange={(e) => handleBuscarProducto(e.target.value)}
+                        onKeyPress={(e) => e.key === "Enter" && handleAgregarProducto()}
+                        onFocus={() => codigo.length > 0 && setMostrarSugerencias(sugerencias.length > 0)}
+                        onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                        autoFocus
+                      />
+                    </div>
+                    
+                    {/* Lista de sugerencias */}
+                    {mostrarSugerencias && sugerencias.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {sugerencias.map((producto) => (
+                          <button
+                            key={producto.id}
+                            onClick={() => handleSeleccionarSugerencia(producto)}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 transition-colors"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="font-medium text-gray-900 dark:text-white">{producto.nombre}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{producto.codigo_barras}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-blue-600 dark:text-blue-400">${producto.precio.toFixed(2)}</p>
+                                <p className="text-xs text-gray-500">Stock: {producto.stock}</p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={handleAgregarProducto}
+                    disabled={!codigo.trim()}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 dark:from-blue-600 dark:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white py-3 px-4 rounded-lg font-medium shadow-md hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <FaPlus />
+                    Agregar al Carrito
+                  </button>
+                  
+                  {/* Botón para agregar manualmente */}
+                  <button
+                    onClick={() => setMostrarManual(!mostrarManual)}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 dark:from-purple-600 dark:to-purple-700 text-white py-3 px-4 rounded-lg font-medium shadow-md hover:shadow-xl transition-all duration-200"
+                  >
+                    <FaEdit />
+                    {mostrarManual ? "Cerrar" : "Agregar Manualmente"}
+                  </button>
+                  
+                  {/* Formulario de entrada manual */}
+                  {mostrarManual && (
+                    <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-3">
+                      <h3 className="font-semibold text-purple-800 dark:text-purple-300 flex items-center gap-2">
+                        <FaEdit /> Agregar Producto Manualmente
+                      </h3>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Nombre del Producto
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Pan dulce"
+                          value={productoManual.nombre}
+                          onChange={(e) => setProductoManual({ ...productoManual, nombre: e.target.value })}
+                          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Precio de Venta
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-gray-500">$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            value={productoManual.precio || ""}
+                            onChange={(e) => setProductoManual({ ...productoManual, precio: parseFloat(e.target.value) || 0 })}
+                            className="w-full pl-8 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleAgregarManual}
+                        className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-medium transition-all duration-200"
+                      >
+                        <FaPlus />
+                        Agregar al Carrito
+                      </button>
+                      <p className="text-xs text-purple-600 dark:text-purple-400">
+                        * Los productos manuales no afectan el inventario
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Totales y pago */}
@@ -399,8 +628,8 @@ export default function VentasPage() {
                         <div className="flex items-center gap-4">
                           {/* Controles de cantidad */}
                           <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg p-1 border border-gray-300 dark:border-gray-600">
-                            <button
-                              onClick={() => handleCambiarCantidad(item.codigo_barras, -1)}
+                        <button
+                              onClick={() => handleCambiarCantidad(item.id, -1)}
                               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                             >
                               <FaMinus className="text-gray-600 dark:text-gray-400" />
@@ -409,11 +638,11 @@ export default function VentasPage() {
                               {item.cantidad}
                             </span>
                             <button
-                              onClick={() => handleCambiarCantidad(item.codigo_barras, 1)}
+                              onClick={() => handleCambiarCantidad(item.id, 1)}
                               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                               disabled={
-                                productos.find((p) => p.codigo_barras === item.codigo_barras)
-                                  ?.stock === 0
+                                !item.codigo_barras.startsWith("MANUAL-") &&
+                                productos.find((p) => p.id === item.id)?.stock === 0
                               }
                             >
                               <FaPlus className="text-gray-600 dark:text-gray-400" />
@@ -432,7 +661,7 @@ export default function VentasPage() {
 
                           {/* Botón eliminar */}
                           <button
-                            onClick={() => handleEliminarItem(item.codigo_barras)}
+                            onClick={() => handleEliminarItem(item.id)}
                             className="p-3 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200"
                           >
                             <FaTrash />

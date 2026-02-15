@@ -1,7 +1,7 @@
 # Configuración de Vercel para SPM Monorepo
 
 ## ⚠️ PROBLEMA CRÍTICO
-En producción, Tailwind CSS no se está compilando correctamente, mostrando la página sin estilos (solo HTML básico).
+El build se completa en 48ms (no construye nada) y muestra error 404.
 
 ## ✅ SOLUCIÓN OBLIGATORIA
 

@@ -1,36 +1,73 @@
 # Configuración de Vercel para SPM Monorepo
 
-## Problema
-En producción, Tailwind CSS no se está compilando correctamente, mostrando la página sin estilos.
+## ⚠️ PROBLEMA CRÍTICO
+En producción, Tailwind CSS no se está compilando correctamente, mostrando la página sin estilos (solo HTML básico).
 
-## Solución
+## ✅ SOLUCIÓN OBLIGATORIA
 
-### Opción 1: Configurar en el Dashboard de Vercel (Recomendado)
+### Paso 1: Configurar Root Directory en Vercel Dashboard (REQUERIDO)
 
-1. Ve a tu proyecto en Vercel Dashboard
-2. Ve a **Settings** → **General**
-3. En la sección **Root Directory**, selecciona: `apps/frontend`
-4. Guarda los cambios
+**Esto es CRÍTICO y debe hacerse manualmente:**
 
-### Opción 2: Usar vercel.json (Ya configurado)
+1. Ve a tu proyecto en [Vercel Dashboard](https://vercel.com/dashboard)
+2. Haz clic en tu proyecto **SPM**
+3. Ve a **Settings** (Configuración)
+4. En el menú lateral, selecciona **General**
+5. Desplázate hasta la sección **Root Directory**
+6. **Haz clic en "Edit"** y escribe: `apps/frontend`
+7. **Guarda los cambios** (Save)
 
-El archivo `vercel.json` en la raíz ya está configurado para:
-- Build Command: `npm run build:frontend`
+**Sin este paso, Tailwind NO se compilará correctamente.**
+
+### Paso 2: Verificar vercel.json
+
+El archivo `vercel.json` en la raíz está configurado para:
+- Build Command: `npm run build` (construye todo el monorepo)
 - Output Directory: `apps/frontend/.next`
 - Framework: `nextjs`
 
-## Verificación
+### Paso 3: Hacer un nuevo deploy
 
-Después de configurar, el build debería:
-1. Instalar todas las dependencias del monorepo
-2. Compilar los packages necesarios
-3. Compilar el frontend con Tailwind CSS
-4. Generar los estilos correctamente
+Después de configurar el Root Directory:
+1. Haz un nuevo commit y push, O
+2. Ve a Vercel Dashboard → Deployments → "Redeploy" (último deployment)
 
-## Si el problema persiste
+## 🔍 Verificación
 
-1. Verifica que `tailwind.config.js` tenga los paths correctos
-2. Verifica que `postcss.config.js` esté configurado
-3. Verifica que `globals.css` tenga las directivas `@tailwind`
-4. Revisa los logs de build en Vercel para ver errores específicos
+Después de configurar correctamente, el build debería:
+1. ✅ Instalar todas las dependencias del monorepo
+2. ✅ Compilar los packages (`@spm/db`, `@spm/auth`, `@spm/utils`)
+3. ✅ Compilar el frontend con Tailwind CSS
+4. ✅ Generar los estilos CSS en `.next/static/css/`
+
+## 🐛 Si el problema persiste
+
+### Verificar en los logs de build:
+
+1. Busca en los logs: `Creating an optimized production build`
+2. Deberías ver que se compilan los archivos CSS
+3. Si ves errores de Tailwind, verifica:
+   - `tailwind.config.js` existe en `apps/frontend/`
+   - `postcss.config.js` existe en `apps/frontend/`
+   - `globals.css` tiene las directivas `@tailwind`
+
+### Verificar en el navegador (F12):
+
+1. Abre la pestaña **Network**
+2. Recarga la página
+3. Busca archivos CSS (filtra por "CSS")
+4. Deberías ver un archivo como `_app-[hash].css`
+5. Si NO aparece, Tailwind no se está compilando
+
+### Solución alternativa si Root Directory no funciona:
+
+Si configurar Root Directory causa problemas, puedes:
+1. Mover `vercel.json` a `apps/frontend/vercel.json`
+2. Configurar el proyecto para que apunte directamente a `apps/frontend`
+
+## 📝 Notas Importantes
+
+- **Root Directory es OBLIGATORIO** para monorepos en Vercel
+- Sin Root Directory, Vercel no encuentra `tailwind.config.js` y `postcss.config.js`
+- El build puede completarse exitosamente pero sin estilos CSS generados
 

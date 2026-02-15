@@ -49,21 +49,51 @@ export default function ComprasPage() {
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "success" | "error" | "warning", texto: string } | null>(null);
 
-  // Cargar productos disponibles desde el backend
+  // Cargar productos y compras desde el backend
   useEffect(() => {
     cargarProductos();
+    cargarCompras();
   }, []);
 
   const cargarProductos = async () => {
     try {
-      const res = await fetch("https://spm-blond-two.vercel.app/productos");
+      const res = await fetch("/api/productos");
       if (res.ok) {
         const data = await res.json();
-        setProductos(data);
+        // Convertir id de number a string para compatibilidad
+        const productosFormateados = data.map((p: any) => ({
+          ...p,
+          id: String(p.id),
+        }));
+        setProductos(productosFormateados);
+      } else {
+        throw new Error("Error al cargar productos");
       }
     } catch (error) {
       console.error("Error al cargar productos:", error);
-      mostrarMensaje("warning", "Modo offline: usando productos locales");
+      mostrarMensaje("warning", "Error al cargar productos desde el servidor");
+    }
+  };
+
+  const cargarCompras = async () => {
+    try {
+      const res = await fetch("/api/compras");
+      if (res.ok) {
+        const data = await res.json();
+        // Formatear compras para el estado local
+        const comprasFormateadas = data.map((c: any) => ({
+          id: String(c.id),
+          producto: c.producto || "",
+          producto_id: String(c.producto_id),
+          cantidad: c.cantidad,
+          costo_unitario: parseFloat(c.costo_unitario),
+          fecha: c.fecha ? new Date(c.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+          estado: "aprobada" as const,
+        }));
+        setCompras(comprasFormateadas);
+      }
+    } catch (error) {
+      console.error("Error al cargar compras:", error);
     }
   };
 
@@ -104,13 +134,18 @@ export default function ComprasPage() {
     };
 
     try {
+      // Validar que se haya seleccionado un producto del inventario
+      if (!productoId) {
+        mostrarMensaje("error", "Debes seleccionar un producto del inventario");
+        return;
+      }
+
       // Intentar registrar en el backend
-      const res = await fetch("https://spm-blond-two.vercel.app/compras", {
+      const res = await fetch("/api/compras", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          producto_id: productoId,
-          producto_nombre: nuevaCompra.producto,
+          producto_id: parseInt(productoId),
           cantidad,
           costo_unitario: costo,
         }),
@@ -118,19 +153,29 @@ export default function ComprasPage() {
 
       if (res.ok) {
         const data = await res.json();
-        setCompras([{ ...nuevaCompra, id: data.id }, ...compras]);
+        const compraGuardada = {
+          id: String(data.id),
+          producto: data.producto || nuevaCompra.producto,
+          producto_id: String(data.producto_id),
+          cantidad: data.cantidad,
+          costo_unitario: parseFloat(data.costo_unitario),
+          fecha: data.fecha ? new Date(data.fecha).toISOString().split("T")[0] : nuevaCompra.fecha,
+          estado: "aprobada" as const,
+        };
+        setCompras([compraGuardada, ...compras]);
         mostrarMensaje("success", "✅ Compra registrada exitosamente en el servidor");
         
-        // Recargar productos para actualizar stock si es necesario
+        // Recargar productos para actualizar stock
         cargarProductos();
+        // Recargar compras para tener la lista actualizada
+        cargarCompras();
       } else {
-        throw new Error("Error en el servidor");
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Error en el servidor");
       }
-    } catch (error) {
-      // Modo offline: guardar localmente
-      console.log("Guardando compra localmente:", error);
-      setCompras([nuevaCompra, ...compras]);
-      mostrarMensaje("warning", "⚠️ Compra guardada localmente (sin conexión al servidor)");
+    } catch (error: any) {
+      console.error("Error al registrar compra:", error);
+      mostrarMensaje("error", `❌ Error al registrar compra: ${error.message || "Error desconocido"}`);
     } finally {
       setLoading(false);
       

@@ -15,6 +15,18 @@ model Producto {
   precio        Float
   stock         Int      @default(0)
   fecha_ingreso DateTime @default(now())
+  compras       Compra[]
 
   @@map("productos")
+}
+
+model Compra {
+  id             Int      @id @default(autoincrement())
+  producto_id    Int
+  cantidad       Int
+  costo_unitario Float
+  fecha          DateTime @default(now())
+  producto       Producto @relation(fields: [producto_id], references: [id])
+
+  @@map("compras")
 }

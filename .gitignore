@@ -43,3 +43,5 @@ packages/db/prisma/migrations/
 *.tmp
 .cache/
 
+.vercel
+.env*.local

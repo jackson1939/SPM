@@ -71,3 +71,67 @@ Si configurar Root Directory causa problemas, puedes:
 - Sin Root Directory, Vercel no encuentra `tailwind.config.js` y `postcss.config.js`
 - El build puede completarse exitosamente pero sin estilos CSS generados
 
+## 🔐 Configuración de Variables de Entorno en Vercel (CRÍTICO)
+
+**IMPORTANTE**: Para que la aplicación funcione correctamente en producción, debes configurar las variables de entorno en Vercel.
+
+### Paso 1: Configurar Variables de Entorno
+
+1. Ve a tu proyecto en [Vercel Dashboard](https://vercel.com/dashboard)
+2. Haz clic en tu proyecto **SPM**
+3. Ve a **Settings** (Configuración)
+4. En el menú lateral, selecciona **Environment Variables**
+5. Agrega las siguientes variables:
+
+#### Variables Requeridas:
+
+**`DATABASE_URL`** (Production, Preview, Development)
+```
+postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+```
+
+**`DATABASE_URL_UNPOOLED`** (Production, Preview, Development) - Opcional pero recomendado
+```
+postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+```
+
+### Paso 2: Verificar que las Variables Estén Configuradas
+
+1. Después de agregar las variables, haz un nuevo deploy
+2. Verifica en los logs de build que no haya errores de conexión a la base de datos
+3. Prueba la aplicación en producción:
+   - https://spm-n7pe0s4gq-bolivianet-market.vercel.app/productos
+   - https://spm-n7pe0s4gq-bolivianet-market.vercel.app/compras
+
+### Paso 3: Ejecutar Migraciones de Base de Datos
+
+**IMPORTANTE**: Antes de usar la aplicación en producción, debes ejecutar las migraciones de Prisma para crear las tablas necesarias.
+
+1. **Opción A: Desde tu máquina local** (recomendado)
+   ```bash
+   cd C:\SPM
+   npm run db:migrate
+   ```
+
+2. **Opción B: Desde Vercel** (si tienes acceso a la consola)
+   - Ve a tu proyecto en Vercel Dashboard
+   - Abre la consola del deployment
+   - Ejecuta: `npm run db:migrate`
+
+### ⚠️ Solución de Problemas
+
+**Error: "Error interno del servidor" en productos/compras**
+- Verifica que `DATABASE_URL` esté configurada correctamente en Vercel
+- Verifica que las tablas `productos` y `compras` existan en la base de datos
+- Ejecuta las migraciones: `npm run db:migrate`
+
+**Error: "Compra guardada localmente"**
+- Esto significa que la API `/api/compras` no está funcionando
+- Verifica que la ruta de API exista: `apps/frontend/pages/api/compras.ts`
+- Verifica que `DATABASE_URL` esté configurada en Vercel
+- Verifica que la tabla `compras` exista en la base de datos
+
+**Error: "Missing script: db:migrate"**
+- Ya está solucionado: el script está agregado en `apps/backend/package.json`
+- Ejecuta desde la raíz del monorepo: `npm run db:migrate`
+

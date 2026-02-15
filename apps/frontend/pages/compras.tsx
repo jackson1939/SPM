@@ -89,16 +89,33 @@ export default function ComprasPage() {
     try {
       setLoadingCompras(true);
       setErrorCompras(null);
+      console.log("[ComprasPage] Cargando compras...");
       const res = await fetch("/api/compras");
       if (res.ok) {
         const data = await res.json();
+        console.log("[ComprasPage] Datos recibidos de API:", data);
+        
         // Manejar nueva estructura con resumen o estructura antigua
         const comprasData = data.compras || data;
+        console.log("[ComprasPage] Compras data procesada:", comprasData);
+        
         // Formatear compras para el estado local, manejando valores nulos/undefined
         const comprasFormateadas = (Array.isArray(comprasData) ? comprasData : []).map((c: any) => {
           const cantidad = parseInt(c.cantidad) || 0;
           const costoUnitario = parseFloat(c.costo_unitario) || 0;
           const totalCalculado = parseFloat(c.total) || (cantidad * costoUnitario);
+          
+          // Formatear fecha
+          let fechaFormateada = c.fecha;
+          if (fechaFormateada) {
+            if (typeof fechaFormateada === "string" && fechaFormateada.includes("T")) {
+              fechaFormateada = fechaFormateada.split("T")[0];
+            } else if (fechaFormateada instanceof Date) {
+              fechaFormateada = fechaFormateada.toISOString().split("T")[0];
+            }
+          } else {
+            fechaFormateada = new Date().toISOString().split("T")[0];
+          }
           
           return {
             id: String(c.id || ""),
@@ -106,19 +123,22 @@ export default function ComprasPage() {
             producto_id: c.producto_id ? String(c.producto_id) : "",
             cantidad,
             costo_unitario: costoUnitario,
-            fecha: c.fecha ? new Date(c.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            fecha: fechaFormateada,
             estado: (c.estado || "aprobada") as "aprobada" | "pendiente" | "rechazada",
             total: totalCalculado,
           };
         });
+        
+        console.log("[ComprasPage] Compras formateadas:", comprasFormateadas);
+        console.log("[ComprasPage] Total de compras:", comprasFormateadas.length);
         setCompras(comprasFormateadas);
       } else {
         const errorData = await res.json().catch(() => ({}));
-        console.error("Error respuesta API compras:", errorData);
+        console.error("[ComprasPage] Error respuesta API compras:", errorData);
         setErrorCompras(errorData.error || "Error al cargar compras. Ejecuta el script de migración en Neon.");
       }
     } catch (error: any) {
-      console.error("Error al cargar compras:", error);
+      console.error("[ComprasPage] Error al cargar compras:", error);
       setErrorCompras("Error de conexión al cargar compras");
     } finally {
       setLoadingCompras(false);
@@ -190,21 +210,40 @@ export default function ComprasPage() {
         const data = await res.json();
         const totalCalculado = (data.cantidad || cantidad) * (data.costo_unitario || costo);
         const compraGuardada = {
-          id: String(data.id),
+          id: String(data.id || Date.now()),
           producto: data.producto || producto,
           producto_id: String(data.producto_id || ""),
           cantidad: data.cantidad || cantidad,
           costo_unitario: parseFloat(data.costo_unitario || costo),
-          fecha: data.fecha ? new Date(data.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+          fecha: data.fecha ? (typeof data.fecha === "string" ? data.fecha.split("T")[0] : new Date(data.fecha).toISOString().split("T")[0]) : new Date().toISOString().split("T")[0],
           estado: (data.estado || "aprobada") as "aprobada" | "pendiente" | "rechazada",
           total: parseFloat(data.total || totalCalculado),
         };
-        // Recargar compras para tener la lista actualizada con todos los datos correctos
-        await cargarCompras();
+        
+        console.log("[ComprasPage] Compra guardada recibida:", compraGuardada);
+        
+        // Agregar inmediatamente al estado local para actualización instantánea
+        setCompras(prevCompras => {
+          // Verificar que no esté duplicada
+          const existe = prevCompras.some(c => c.id === compraGuardada.id);
+          if (existe) {
+            console.log("[ComprasPage] La compra ya existe en el estado, no se duplicará");
+            return prevCompras;
+          }
+          console.log("[ComprasPage] Agregando compra al estado local");
+          return [compraGuardada, ...prevCompras];
+        });
+        
         mostrarMensaje("success", "✅ Compra registrada exitosamente. El producto ha sido actualizado en el inventario.");
         
         // Recargar productos para actualizar stock
         cargarProductos();
+        
+        // Recargar compras después de un pequeño delay para sincronizar con la BD
+        setTimeout(async () => {
+          console.log("[ComprasPage] Recargando compras después de registrar nueva compra");
+          await cargarCompras();
+        }, 500);
         
         // Resetear formulario
         setProducto("");

@@ -11,36 +11,43 @@ async function insertarCompra(
   total: number
 ): Promise<any> {
   // Lista de intentos de INSERT, del más completo al más simple
+  // NOTA: Si la tabla tiene total como GENERATED ALWAYS, no debemos incluirlo en el INSERT
   const intentos = [
-    // Intento 1: Estructura con producto_id y costo_unitario
+    // Intento 1: Estructura completa SIN total (por si es GENERATED)
+    {
+      query: `INSERT INTO compras (producto_id, producto, cantidad, costo_unitario, estado, fecha) 
+              VALUES ($1, $2, $3, $4, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [producto_id, producto_nombre, cantidad, costo_unitario]
+    },
+    // Intento 2: Estructura completa CON total (por si no es GENERATED)
     {
       query: `INSERT INTO compras (producto_id, producto, cantidad, costo_unitario, total, estado, fecha) 
               VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
       params: [producto_id, producto_nombre, cantidad, costo_unitario, total]
     },
-    // Intento 2: Sin producto_id
+    // Intento 3: Sin producto_id, SIN total
+    {
+      query: `INSERT INTO compras (producto, cantidad, costo_unitario, estado, fecha) 
+              VALUES ($1, $2, $3, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [producto_nombre, cantidad, costo_unitario]
+    },
+    // Intento 4: Sin producto_id, CON total
     {
       query: `INSERT INTO compras (producto, cantidad, costo_unitario, total, estado, fecha) 
               VALUES ($1, $2, $3, $4, 'aprobada', CURRENT_DATE) RETURNING *`,
       params: [producto_nombre, cantidad, costo_unitario, total]
     },
-    // Intento 3: Sin estado
+    // Intento 5: Sin estado, SIN total
+    {
+      query: `INSERT INTO compras (producto, cantidad, costo_unitario) 
+              VALUES ($1, $2, $3) RETURNING *`,
+      params: [producto_nombre, cantidad, costo_unitario]
+    },
+    // Intento 6: Sin estado, CON total
     {
       query: `INSERT INTO compras (producto, cantidad, costo_unitario, total) 
               VALUES ($1, $2, $3, $4) RETURNING *`,
       params: [producto_nombre, cantidad, costo_unitario, total]
-    },
-    // Intento 4: Campos mínimos con producto_id
-    {
-      query: `INSERT INTO compras (producto_id, cantidad, total) 
-              VALUES ($1, $2, $3) RETURNING *`,
-      params: [producto_id, cantidad, total]
-    },
-    // Intento 5: Campos mínimos sin producto_id
-    {
-      query: `INSERT INTO compras (cantidad, total) 
-              VALUES ($1, $2) RETURNING *`,
-      params: [cantidad, total]
     }
   ];
 
@@ -48,21 +55,25 @@ async function insertarCompra(
   
   for (const intento of intentos) {
     try {
+      console.log(`[insertarCompra] Intentando query:`, intento.query.substring(0, 100) + "...");
       const result = await db.query(intento.query, intento.params);
+      console.log(`[insertarCompra] ✅ Compra insertada exitosamente con ID:`, result.rows[0]?.id);
       return result;
     } catch (err: any) {
       lastError = err;
-      // Si es error de columna inexistente, probar siguiente intento
-      if (err.code === "42703") {
-        console.log(`Intento fallido en compras (columna no existe): ${err.message}`);
+      // Si es error de columna inexistente o de columna generada, probar siguiente intento
+      if (err.code === "42703" || err.code === "428C9") {
+        console.log(`[insertarCompra] Intento fallido (${err.code}): ${err.message}`);
         continue;
       }
       // Si es otro tipo de error, lanzarlo
+      console.error(`[insertarCompra] Error no recuperable:`, err);
       throw err;
     }
   }
   
   // Si ninguno funcionó, lanzar el último error
+  console.error(`[insertarCompra] ❌ Todos los intentos fallaron. Último error:`, lastError);
   throw lastError;
 }
 
@@ -76,51 +87,87 @@ export default async function handler(
     const db = getDbClient();
     
     if (req.method === "GET") {
-      // Intentar diferentes queries según la estructura de la tabla
-      const queries = [
-        // Query completa
-        `SELECT id, producto_id, producto, cantidad, costo_unitario, total, estado, fecha FROM compras ORDER BY id DESC`,
-        // Sin producto_id
-        `SELECT id, producto, cantidad, costo_unitario, total, estado, fecha FROM compras ORDER BY id DESC`,
-        // Sin estado
-        `SELECT id, producto, cantidad, costo_unitario, total, fecha FROM compras ORDER BY id DESC`,
-        // Mínima
-        `SELECT id, cantidad, total FROM compras ORDER BY id DESC`,
-        // Todo
-        `SELECT * FROM compras ORDER BY id DESC`
-      ];
-
-      for (const query of queries) {
-        try {
-          const result = await db.query(query);
-          // Formatear los resultados para asegurar consistencia
-          const comprasFormateadas = result.rows.map((c: any) => {
-            const cantidad = parseInt(c.cantidad) || 0;
-            const costoUnitario = parseFloat(c.costo_unitario) || parseFloat(c.costo) || 0;
-            const totalCalculado = parseFloat(c.total) || (cantidad * costoUnitario);
-            
-            return {
-              id: c.id,
-              producto: c.producto || c.nombre || "Sin nombre",
-              producto_id: c.producto_id || null,
-              cantidad,
-              costo_unitario: costoUnitario,
-              total: totalCalculado,
-              estado: c.estado || "aprobada",
-              fecha: c.fecha || new Date().toISOString()
-            };
-          });
-          return res.status(200).json(comprasFormateadas);
-        } catch (err: any) {
-          if (err.code === "42703" || err.code === "42P01") {
-            continue; // Probar siguiente query
-          }
-          throw err;
-        }
-      }
+      // Primero intentar obtener la estructura de la tabla
+      let query = `SELECT * FROM compras ORDER BY id DESC`;
       
-      // Si ninguna query funciona, retornar array vacío
-      return res.status(200).json([]);
+      try {
+        const result = await db.query(query);
+        console.log(`[API Compras GET] Encontradas ${result.rows.length} compras`);
+        
+        // Formatear los resultados para asegurar consistencia
+        const comprasFormateadas = result.rows.map((c: any) => {
+          const cantidad = parseInt(c.cantidad) || 0;
+          const costoUnitario = parseFloat(c.costo_unitario) || parseFloat(c.costo) || 0;
+          // Si total es una columna generada o calculada, calcularlo si no existe
+          let totalCalculado = parseFloat(c.total);
+          if (isNaN(totalCalculado)) {
+            totalCalculado = cantidad * costoUnitario;
+          }
+          
+          // Formatear fecha correctamente
+          let fechaFormateada = c.fecha;
+          if (fechaFormateada) {
+            // Si es un objeto Date o string ISO, convertir a formato YYYY-MM-DD
+            if (fechaFormateada instanceof Date) {
+              fechaFormateada = fechaFormateada.toISOString().split("T")[0];
+            } else if (typeof fechaFormateada === "string" && fechaFormateada.includes("T")) {
+              fechaFormateada = fechaFormateada.split("T")[0];
+            }
+          } else {
+            fechaFormateada = new Date().toISOString().split("T")[0];
+          }
+          
+          const compraFormateada = {
+            id: c.id,
+            producto: c.producto || c.nombre_producto || c.nombre || "Sin nombre",
+            producto_id: c.producto_id || null,
+            cantidad,
+            costo_unitario: costoUnitario,
+            total: totalCalculado,
+            estado: c.estado || "aprobada",
+            fecha: fechaFormateada
+          };
+          
+          console.log(`[API Compras GET] Compra formateada:`, compraFormateada);
+          return compraFormateada;
+        });
+        
+        console.log(`[API Compras GET] Devolviendo ${comprasFormateadas.length} compras`);
+        return res.status(200).json(comprasFormateadas);
+      } catch (err: any) {
+        console.error("[API Compras GET] Error al obtener compras:", err);
+        
+        // Si la tabla no existe, retornar array vacío
+        if (err.code === "42P01") {
+          console.warn("[API Compras GET] Tabla compras no existe");
+          return res.status(200).json([]);
+        }
+        
+        // Si hay error de columna, intentar query más simple
+        if (err.code === "42703") {
+          console.warn("[API Compras GET] Error de columna, intentando query simple");
+          try {
+            const simpleQuery = `SELECT id, cantidad, costo_unitario FROM compras ORDER BY id DESC`;
+            const simpleResult = await db.query(simpleQuery);
+            const comprasSimples = simpleResult.rows.map((c: any) => ({
+              id: c.id,
+              producto: "Producto",
+              producto_id: null,
+              cantidad: parseInt(c.cantidad) || 0,
+              costo_unitario: parseFloat(c.costo_unitario) || 0,
+              total: (parseInt(c.cantidad) || 0) * (parseFloat(c.costo_unitario) || 0),
+              estado: "aprobada",
+              fecha: new Date().toISOString().split("T")[0]
+            }));
+            return res.status(200).json(comprasSimples);
+          } catch (simpleErr: any) {
+            console.error("[API Compras GET] Error en query simple:", simpleErr);
+            return res.status(200).json([]);
+          }
+        }
+        
+        throw err;
+      }
     }
 
     if (req.method === "POST") {
@@ -278,12 +325,21 @@ export default async function handler(
       let compraRes: any = null;
       
       try {
+        console.log(`[API Compras POST] Intentando insertar compra:`, {
+          productoIdFinal,
+          productoNombre,
+          cantidadNum,
+          costoNum,
+          totalCompra
+        });
+        
         compraRes = await insertarCompra(
           db, productoIdFinal, productoNombre, cantidadNum, costoNum, totalCompra
         );
         compraRegistrada = true;
+        console.log(`[API Compras POST] Compra insertada exitosamente:`, compraRes?.rows?.[0]);
       } catch (err: any) {
-        console.error("Error al insertar compra en BD:", err.message);
+        console.error("[API Compras POST] Error al insertar compra en BD:", err);
         // Continuar aunque falle - el stock ya se actualizó
       }
 

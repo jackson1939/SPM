@@ -262,19 +262,6 @@ export default function ComprasPage() {
     }
   };
 
-  // Filtrar compras
-  const comprasFiltradas = comprasPorFecha.filter((compra) => {
-    const matchesSearch = compra.producto.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEstado = filterEstado === "todos" || compra.estado === filterEstado;
-    return matchesSearch && matchesEstado;
-  });
-
-  // Filtrar productos por búsqueda
-  const productosFiltrados = productos.filter((p) => 
-    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   // Filtrar compras por fecha
   const comprasPorFecha = compras.filter((c) => {
     if (filtroFecha === "todos") return true;
@@ -292,6 +279,19 @@ export default function ComprasPage() {
     
     return true;
   });
+
+  // Filtrar compras
+  const comprasFiltradas = comprasPorFecha.filter((compra) => {
+    const matchesSearch = compra.producto.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesEstado = filterEstado === "todos" || compra.estado === filterEstado;
+    return matchesSearch && matchesEstado;
+  });
+
+  // Filtrar productos por búsqueda
+  const productosFiltrados = productos.filter((p) => 
+    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   // Calcular totales (usar compras filtradas)
   const totalCompras = comprasPorFecha.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0);

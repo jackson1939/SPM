@@ -92,8 +92,10 @@ export default function ComprasPage() {
       const res = await fetch("/api/compras");
       if (res.ok) {
         const data = await res.json();
+        // Manejar nueva estructura con resumen o estructura antigua
+        const comprasData = data.compras || data;
         // Formatear compras para el estado local, manejando valores nulos/undefined
-        const comprasFormateadas = data.map((c: any) => ({
+        const comprasFormateadas = (Array.isArray(comprasData) ? comprasData : []).map((c: any) => ({
           id: String(c.id || ""),
           producto: c.producto || c.nombre_producto || "Sin nombre",
           producto_id: c.producto_id ? String(c.producto_id) : "",
@@ -101,6 +103,7 @@ export default function ComprasPage() {
           costo_unitario: parseFloat(c.costo_unitario) || 0,
           fecha: c.fecha ? new Date(c.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
           estado: (c.estado || "aprobada") as "aprobada" | "pendiente" | "rechazada",
+          total: parseFloat(c.total) || (parseFloat(c.cantidad || 0) * parseFloat(c.costo_unitario || 0)),
         }));
         setCompras(comprasFormateadas);
       } else {
@@ -310,9 +313,10 @@ export default function ComprasPage() {
   );
 
   // Calcular totales (usar compras filtradas, manejar NaN)
+  // Usar el campo total si existe, sino calcularlo
   const totalCompras = comprasPorFecha.reduce((acc, c) => {
-    const subtotal = (c.cantidad || 0) * (c.costo_unitario || 0);
-    return acc + (isNaN(subtotal) ? 0 : subtotal);
+    const total = (c as any).total || ((c.cantidad || 0) * (c.costo_unitario || 0));
+    return acc + (isNaN(total) ? 0 : total);
   }, 0);
   const comprasAprobadas = comprasPorFecha.filter(c => c.estado === "aprobada").length;
   const productoSeleccionado = productos.find(p => p.id === productoId);

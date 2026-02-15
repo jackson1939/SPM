@@ -280,6 +280,19 @@ export default function VentasPage() {
       if (res.ok) {
         const data = await res.json();
         console.log("Venta registrada:", data);
+        
+        // Manejar respuesta con múltiples ventas o una sola
+        if (data.ventas) {
+          // Múltiples ventas registradas
+          console.log(`${data.total_ventas} venta(s) registrada(s)`, data);
+          if (data.errores && data.errores.length > 0) {
+            console.warn("Algunos items tuvieron errores:", data.errores);
+          }
+        } else {
+          // Una sola venta (compatibilidad)
+          console.log("Venta única registrada:", data);
+        }
+        
         setVentaCompletada(true);
         
         setTimeout(() => {

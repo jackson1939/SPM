@@ -28,11 +28,98 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === "POST") {
-      const { producto_id, cantidad, metodo_pago, notas } = req.body;
+      const { items, producto_id, cantidad, metodo_pago, notas, monto_pagado } = req.body;
 
-      // Validaciones
+      // Si hay items (múltiples productos), procesar cada uno
+      if (items && Array.isArray(items) && items.length > 0) {
+        const ventasRegistradas = [];
+        const errores = [];
+
+        for (const item of items) {
+          try {
+            const itemProductoId = item.producto_id;
+            const itemCantidad = item.cantidad;
+            const itemPrecioUnitario = item.precio_unitario || item.precio;
+
+            // Validaciones
+            if (!itemProductoId || !itemCantidad) {
+              errores.push(`Item sin producto_id o cantidad: ${item.nombre || 'desconocido'}`);
+              continue;
+            }
+
+            if (itemCantidad <= 0) {
+              errores.push(`Cantidad inválida para: ${item.nombre || 'desconocido'}`);
+              continue;
+            }
+
+            // Verificar que el producto existe y tiene stock
+            const productoRes = await db.query(
+              "SELECT id, nombre, precio, stock FROM productos WHERE id = $1 AND activo = true", 
+              [itemProductoId]
+            );
+
+            if (productoRes.rows.length === 0) {
+              errores.push(`Producto no encontrado: ${item.nombre || itemProductoId}`);
+              continue;
+            }
+
+            const producto = productoRes.rows[0];
+
+            // Verificar stock suficiente
+            if (producto.stock < itemCantidad) {
+              errores.push(`Stock insuficiente para ${producto.nombre}: disponible ${producto.stock}, solicitado ${itemCantidad}`);
+              continue;
+            }
+
+            const precioUnitario = itemPrecioUnitario || producto.precio;
+            const total = precioUnitario * itemCantidad;
+
+            // Registrar venta
+            const ventaRes = await db.query(
+              `INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, metodo_pago, notas) 
+               VALUES ($1, $2, $3, $4, $5, $6) 
+               RETURNING *`,
+              [itemProductoId, itemCantidad, precioUnitario, total, metodo_pago || 'efectivo', notas || null]
+            );
+
+            // Actualizar stock
+            await db.query(
+              "UPDATE productos SET stock = stock - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", 
+              [itemCantidad, itemProductoId]
+            );
+
+            ventasRegistradas.push({
+              ...ventaRes.rows[0],
+              producto_nombre: producto.nombre
+            });
+          } catch (error: any) {
+            console.error(`Error procesando item ${item.nombre || item.producto_id}:`, error);
+            errores.push(`Error al procesar ${item.nombre || 'item'}: ${error.message}`);
+          }
+        }
+
+        // Si hay errores pero también ventas registradas, retornar ambas cosas
+        if (ventasRegistradas.length > 0) {
+          return res.status(201).json({
+            ventas: ventasRegistradas,
+            total_ventas: ventasRegistradas.length,
+            monto_total: ventasRegistradas.reduce((sum, v) => sum + parseFloat(v.total || 0), 0),
+            monto_pagado: monto_pagado || null,
+            vuelto: monto_pagado ? monto_pagado - ventasRegistradas.reduce((sum, v) => sum + parseFloat(v.total || 0), 0) : null,
+            errores: errores.length > 0 ? errores : undefined
+          });
+        }
+
+        // Si no se registró ninguna venta, retornar error
+        return res.status(400).json({ 
+          error: "No se pudo registrar ninguna venta",
+          errores
+        });
+      }
+
+      // Código original para compatibilidad con un solo producto
       if (!producto_id || !cantidad) {
-        return res.status(400).json({ error: "producto_id y cantidad son requeridos" });
+        return res.status(400).json({ error: "producto_id y cantidad son requeridos, o items array" });
       }
 
       if (cantidad <= 0) {

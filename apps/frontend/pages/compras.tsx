@@ -95,16 +95,22 @@ export default function ComprasPage() {
         // Manejar nueva estructura con resumen o estructura antigua
         const comprasData = data.compras || data;
         // Formatear compras para el estado local, manejando valores nulos/undefined
-        const comprasFormateadas = (Array.isArray(comprasData) ? comprasData : []).map((c: any) => ({
-          id: String(c.id || ""),
-          producto: c.producto || c.nombre_producto || "Sin nombre",
-          producto_id: c.producto_id ? String(c.producto_id) : "",
-          cantidad: parseInt(c.cantidad) || 0,
-          costo_unitario: parseFloat(c.costo_unitario) || 0,
-          fecha: c.fecha ? new Date(c.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-          estado: (c.estado || "aprobada") as "aprobada" | "pendiente" | "rechazada",
-          total: parseFloat(c.total) || (parseFloat(c.cantidad || 0) * parseFloat(c.costo_unitario || 0)),
-        }));
+        const comprasFormateadas = (Array.isArray(comprasData) ? comprasData : []).map((c: any) => {
+          const cantidad = parseInt(c.cantidad) || 0;
+          const costoUnitario = parseFloat(c.costo_unitario) || 0;
+          const totalCalculado = parseFloat(c.total) || (cantidad * costoUnitario);
+          
+          return {
+            id: String(c.id || ""),
+            producto: c.producto || c.nombre_producto || "Sin nombre",
+            producto_id: c.producto_id ? String(c.producto_id) : "",
+            cantidad,
+            costo_unitario: costoUnitario,
+            fecha: c.fecha ? new Date(c.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+            estado: (c.estado || "aprobada") as "aprobada" | "pendiente" | "rechazada",
+            total: totalCalculado,
+          };
+        });
         setCompras(comprasFormateadas);
       } else {
         const errorData = await res.json().catch(() => ({}));
@@ -182,22 +188,23 @@ export default function ComprasPage() {
 
       if (res.ok) {
         const data = await res.json();
+        const totalCalculado = (data.cantidad || cantidad) * (data.costo_unitario || costo);
         const compraGuardada = {
           id: String(data.id),
           producto: data.producto || producto,
-          producto_id: String(data.producto_id),
-          cantidad: data.cantidad,
-          costo_unitario: parseFloat(data.costo_unitario),
+          producto_id: String(data.producto_id || ""),
+          cantidad: data.cantidad || cantidad,
+          costo_unitario: parseFloat(data.costo_unitario || costo),
           fecha: data.fecha ? new Date(data.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-          estado: "aprobada" as const,
+          estado: (data.estado || "aprobada") as "aprobada" | "pendiente" | "rechazada",
+          total: parseFloat(data.total || totalCalculado),
         };
-        setCompras([compraGuardada, ...compras]);
+        // Recargar compras para tener la lista actualizada con todos los datos correctos
+        await cargarCompras();
         mostrarMensaje("success", "✅ Compra registrada exitosamente. El producto ha sido actualizado en el inventario.");
         
         // Recargar productos para actualizar stock
         cargarProductos();
-        // Recargar compras para tener la lista actualizada
-        cargarCompras();
         
         // Resetear formulario
         setProducto("");
@@ -312,13 +319,24 @@ export default function ComprasPage() {
     (p.codigo_barras && p.codigo_barras.toLowerCase().includes(searchProducto.toLowerCase()))
   );
 
-  // Calcular totales (usar compras filtradas, manejar NaN)
-  // Usar el campo total si existe, sino calcularlo
-  const totalCompras = comprasPorFecha.reduce((acc, c) => {
+  // Calcular totales - usar todas las compras para estadísticas generales
+  // El monto total debe reflejar todas las compras, no solo las filtradas por fecha
+  const totalCompras = compras.reduce((acc, c) => {
     const total = (c as any).total || ((c.cantidad || 0) * (c.costo_unitario || 0));
     return acc + (isNaN(total) ? 0 : total);
   }, 0);
-  const comprasAprobadas = comprasPorFecha.filter(c => c.estado === "aprobada").length;
+  
+  // Total de compras aprobadas (todas, no solo filtradas)
+  const comprasAprobadas = compras.filter(c => c.estado === "aprobada").length;
+  
+  // Total de compras (todas)
+  const totalComprasCount = compras.length;
+  
+  // Monto total filtrado por fecha (para mostrar en la tarjeta si hay filtro)
+  const montoTotalFiltrado = comprasPorFecha.reduce((acc, c) => {
+    const total = (c as any).total || ((c.cantidad || 0) * (c.costo_unitario || 0));
+    return acc + (isNaN(total) ? 0 : total);
+  }, 0);
   const productoSeleccionado = productos.find(p => p.id === productoId);
 
   const getEstadoBadge = (estado: string) => {
@@ -418,7 +436,7 @@ export default function ComprasPage() {
               {loadingCompras ? (
                 <span className="animate-pulse">...</span>
               ) : (
-                comprasPorFecha.length
+                totalComprasCount
               )}
             </p>
           </div>
@@ -433,12 +451,14 @@ export default function ComprasPage() {
             </p>
           </div>
           <div className="bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-600 dark:to-purple-800 rounded-xl shadow-lg p-6 text-white">
-            <h3 className="text-sm font-medium opacity-90">Monto Total {filtroFecha !== "todos" && `(${filtroFecha === "hoy" ? "Hoy" : "Este Mes"})`}</h3>
+            <h3 className="text-sm font-medium opacity-90">
+              Monto Total {filtroFecha !== "todos" && `(${filtroFecha === "hoy" ? "Hoy" : "Este Mes"})`}
+            </h3>
             <p className="text-3xl font-bold mt-2">
               {loadingCompras ? (
                 <span className="animate-pulse">...</span>
               ) : (
-                `$${totalCompras.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                `$${(filtroFecha !== "todos" ? montoTotalFiltrado : totalCompras).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               )}
             </p>
           </div>

@@ -94,16 +94,22 @@ export default async function handler(
         try {
           const result = await db.query(query);
           // Formatear los resultados para asegurar consistencia
-          const comprasFormateadas = result.rows.map((c: any) => ({
-            id: c.id,
-            producto: c.producto || c.nombre || "Sin nombre",
-            producto_id: c.producto_id || null,
-            cantidad: parseInt(c.cantidad) || 0,
-            costo_unitario: parseFloat(c.costo_unitario) || parseFloat(c.costo) || 0,
-            total: parseFloat(c.total) || 0,
-            estado: c.estado || "aprobada",
-            fecha: c.fecha || new Date().toISOString()
-          }));
+          const comprasFormateadas = result.rows.map((c: any) => {
+            const cantidad = parseInt(c.cantidad) || 0;
+            const costoUnitario = parseFloat(c.costo_unitario) || parseFloat(c.costo) || 0;
+            const totalCalculado = parseFloat(c.total) || (cantidad * costoUnitario);
+            
+            return {
+              id: c.id,
+              producto: c.producto || c.nombre || "Sin nombre",
+              producto_id: c.producto_id || null,
+              cantidad,
+              costo_unitario: costoUnitario,
+              total: totalCalculado,
+              estado: c.estado || "aprobada",
+              fecha: c.fecha || new Date().toISOString()
+            };
+          });
           return res.status(200).json(comprasFormateadas);
         } catch (err: any) {
           if (err.code === "42703" || err.code === "42P01") {

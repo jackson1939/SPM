@@ -41,8 +41,12 @@ export default function ComprasPage() {
   const [cantidad, setCantidad] = useState(0);
   const [costo, setCosto] = useState(0);
   const [codigo, setCodigo] = useState("");
+  const [codigoBarras, setCodigoBarras] = useState("");
+  const [precioVenta, setPrecioVenta] = useState(0);
+  const [crearNuevoProducto, setCrearNuevoProducto] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("todos");
+  const [filtroFecha, setFiltroFecha] = useState<"todos" | "hoy" | "mes">("todos");
   
   // Estados para productos
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -122,53 +126,70 @@ export default function ComprasPage() {
       return;
     }
 
+    // Validar que haya producto seleccionado o nombre de producto
+    if (!productoId && !producto.trim()) {
+      mostrarMensaje("error", "Debes seleccionar un producto o ingresar el nombre de un nuevo producto");
+      return;
+    }
+
     setLoading(true);
 
-    const nuevaCompra: Compra = {
-      producto: producto || productos.find(p => p.id === productoId)?.nombre || "",
-      producto_id: productoId,
-      cantidad,
-      costo_unitario: costo,
-      fecha: new Date().toISOString().split("T")[0],
-      estado: "aprobada",
-    };
-
     try {
-      // Validar que se haya seleccionado un producto del inventario
-      if (!productoId) {
-        mostrarMensaje("error", "Debes seleccionar un producto del inventario");
-        return;
+      // Preparar datos para el backend
+      const body: any = {
+        cantidad,
+        costo_unitario: costo,
+      };
+
+      if (productoId) {
+        // Producto existente del inventario
+        body.producto_id = parseInt(productoId);
+      } else {
+        // Nuevo producto o producto por nombre
+        body.nombre_producto = producto.trim();
+        if (codigoBarras.trim()) {
+          body.codigo_barras = codigoBarras.trim();
+        }
+        if (precioVenta > 0) {
+          body.precio_venta = precioVenta;
+        }
       }
 
       // Intentar registrar en el backend
       const res = await fetch("/api/compras", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          producto_id: parseInt(productoId),
-          cantidad,
-          costo_unitario: costo,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
         const data = await res.json();
         const compraGuardada = {
           id: String(data.id),
-          producto: data.producto || nuevaCompra.producto,
+          producto: data.producto || producto,
           producto_id: String(data.producto_id),
           cantidad: data.cantidad,
           costo_unitario: parseFloat(data.costo_unitario),
-          fecha: data.fecha ? new Date(data.fecha).toISOString().split("T")[0] : nuevaCompra.fecha,
+          fecha: data.fecha ? new Date(data.fecha).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
           estado: "aprobada" as const,
         };
         setCompras([compraGuardada, ...compras]);
-        mostrarMensaje("success", "✅ Compra registrada exitosamente en el servidor");
+        mostrarMensaje("success", "✅ Compra registrada exitosamente. El producto ha sido actualizado en el inventario.");
         
         // Recargar productos para actualizar stock
         cargarProductos();
         // Recargar compras para tener la lista actualizada
         cargarCompras();
+        
+        // Resetear formulario
+        setProducto("");
+        setProductoId("");
+        setCantidad(0);
+        setCosto(0);
+        setCodigo("");
+        setCodigoBarras("");
+        setPrecioVenta(0);
+        setCrearNuevoProducto(false);
       } else {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || "Error en el servidor");
@@ -178,18 +199,71 @@ export default function ComprasPage() {
       mostrarMensaje("error", `❌ Error al registrar compra: ${error.message || "Error desconocido"}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Función para descargar planilla
+  const descargarPlanilla = async (tipo: "hoy" | "mes" | "todas") => {
+    try {
+      let fecha = "";
+      let mes = "";
+      let año = "";
       
-      // Resetear formulario
-      setProducto("");
-      setProductoId("");
-      setCantidad(0);
-      setCosto(0);
-      setCodigo("");
+      if (tipo === "hoy") {
+        fecha = new Date().toISOString().split("T")[0];
+      } else if (tipo === "mes") {
+        const ahora = new Date();
+        mes = String(ahora.getMonth() + 1);
+        año = String(ahora.getFullYear());
+      }
+
+      const params = new URLSearchParams();
+      if (fecha) params.append("fecha", fecha);
+      if (mes) params.append("mes", mes);
+      if (año) params.append("año", año);
+
+      const res = await fetch(`/api/compras?${params.toString()}`);
+      if (res.ok) {
+        const comprasData = await res.json();
+        
+        // Formatear datos para Excel
+        const datosExcel = comprasData.map((c: any) => ({
+          "Producto": c.producto,
+          "Cantidad": c.cantidad,
+          "Costo Unitario": c.costo_unitario,
+          "Total": (c.cantidad * c.costo_unitario).toFixed(2),
+          "Fecha": c.fecha
+        }));
+
+        // Agregar totales
+        const total = comprasData.reduce((acc: number, c: any) => acc + (c.cantidad * c.costo_unitario), 0);
+        datosExcel.push({
+          "Producto": "TOTAL",
+          "Cantidad": comprasData.reduce((acc: number, c: any) => acc + c.cantidad, 0),
+          "Costo Unitario": "",
+          "Total": total.toFixed(2),
+          "Fecha": ""
+        });
+
+        const nombreArchivo = tipo === "hoy" 
+          ? `planilla_compras_${fecha}`
+          : tipo === "mes"
+          ? `planilla_compras_${mes}_${año}`
+          : `planilla_compras_completa_${new Date().toISOString().split("T")[0]}`;
+
+        exportToExcel(datosExcel, nombreArchivo);
+        mostrarMensaje("success", `✅ Planilla descargada: ${nombreArchivo}.xlsx`);
+      } else {
+        throw new Error("Error al obtener compras");
+      }
+    } catch (error: any) {
+      console.error("Error al descargar planilla:", error);
+      mostrarMensaje("error", `❌ Error al descargar planilla: ${error.message}`);
     }
   };
 
   // Filtrar compras
-  const comprasFiltradas = compras.filter((compra) => {
+  const comprasFiltradas = comprasPorFecha.filter((compra) => {
     const matchesSearch = compra.producto.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesEstado = filterEstado === "todos" || compra.estado === filterEstado;
     return matchesSearch && matchesEstado;
@@ -201,9 +275,27 @@ export default function ComprasPage() {
     p.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Calcular totales
-  const totalCompras = compras.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0);
-  const comprasAprobadas = compras.filter(c => c.estado === "aprobada").length;
+  // Filtrar compras por fecha
+  const comprasPorFecha = compras.filter((c) => {
+    if (filtroFecha === "todos") return true;
+    const fechaCompra = new Date(c.fecha);
+    const hoy = new Date();
+    
+    if (filtroFecha === "hoy") {
+      return fechaCompra.toDateString() === hoy.toDateString();
+    }
+    
+    if (filtroFecha === "mes") {
+      return fechaCompra.getMonth() === hoy.getMonth() && 
+             fechaCompra.getFullYear() === hoy.getFullYear();
+    }
+    
+    return true;
+  });
+
+  // Calcular totales (usar compras filtradas)
+  const totalCompras = comprasPorFecha.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0);
+  const comprasAprobadas = comprasPorFecha.filter(c => c.estado === "aprobada").length;
   const productoSeleccionado = productos.find(p => p.id === productoId);
 
   const getEstadoBadge = (estado: string) => {
@@ -290,8 +382,8 @@ export default function ComprasPage() {
             <p className="text-3xl font-bold mt-2">{comprasAprobadas}</p>
           </div>
           <div className="bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-600 dark:to-purple-800 rounded-xl shadow-lg p-6 text-white">
-            <h3 className="text-sm font-medium opacity-90">Monto Total</h3>
-            <p className="text-3xl font-bold mt-2">${totalCompras.toLocaleString()}</p>
+            <h3 className="text-sm font-medium opacity-90">Monto Total {filtroFecha !== "todos" && `(${filtroFecha === "hoy" ? "Hoy" : "Este Mes"})`}</h3>
+            <p className="text-3xl font-bold mt-2">${totalCompras.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
           <div className="bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-600 dark:to-orange-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Productos</h3>
@@ -378,22 +470,77 @@ export default function ComprasPage() {
                   </div>
                 )}
 
-                {/* Campo manual de producto (si no hay en inventario) */}
-                {productos.length === 0 || !productoId ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Producto {productos.length > 0 ? "(o ingresa uno nuevo)" : ""}
-                    </label>
+                {/* Opción para crear nuevo producto */}
+                {productos.length > 0 && (
+                  <div className="flex items-center gap-2">
                     <input
-                      type="text"
-                      placeholder="Nombre del producto"
-                      value={producto}
-                      onChange={(e) => setProducto(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
-                      required={!productoId}
+                      type="checkbox"
+                      id="crearNuevo"
+                      checked={crearNuevoProducto}
+                      onChange={(e) => {
+                        setCrearNuevoProducto(e.target.checked);
+                        if (e.target.checked) {
+                          setProductoId("");
+                        }
+                      }}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                     />
+                    <label htmlFor="crearNuevo" className="text-sm text-gray-700 dark:text-gray-300">
+                      Crear nuevo producto o agregar a existente
+                    </label>
                   </div>
-                ) : null}
+                )}
+
+                {/* Campo manual de producto (si no hay en inventario o se selecciona crear nuevo) */}
+                {(productos.length === 0 || !productoId || crearNuevoProducto) && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Nombre del Producto {productos.length > 0 ? "(buscará por nombre o creará nuevo)" : ""}
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Nombre del producto"
+                        value={producto}
+                        onChange={(e) => setProducto(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                        required={!productoId}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Código de Barras (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Código de barras"
+                        value={codigoBarras}
+                        onChange={(e) => setCodigoBarras(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Precio de Venta (opcional, se calculará automáticamente si no se especifica)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">$</span>
+                        <input
+                          type="number"
+                          placeholder="0.00"
+                          value={precioVenta || ""}
+                          onChange={(e) => setPrecioVenta(parseFloat(e.target.value) || 0)}
+                          className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Si no se especifica, se calculará como: Costo × 1.5 (50% margen)
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -490,15 +637,33 @@ export default function ComprasPage() {
                   <h2 className="text-xl font-bold text-gray-800 dark:text-white">
                     Historial de Compras
                   </h2>
-                  {compras.length > 0 && (
-                    <button
-                      onClick={() => exportToExcel(compras, "compras_backup")}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm font-medium"
-                    >
-                      <FaFileExcel />
-                      Exportar a Excel
-                    </button>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {compras.length > 0 && (
+                      <>
+                        <button
+                          onClick={() => descargarPlanilla("hoy")}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm font-medium"
+                        >
+                          <FaFileExcel />
+                          Planilla Hoy
+                        </button>
+                        <button
+                          onClick={() => descargarPlanilla("mes")}
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm font-medium"
+                        >
+                          <FaFileExcel />
+                          Planilla Mes
+                        </button>
+                        <button
+                          onClick={() => descargarPlanilla("todas")}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm font-medium"
+                        >
+                          <FaFileExcel />
+                          Todas las Compras
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Filtros */}
@@ -524,6 +689,18 @@ export default function ComprasPage() {
                       <option value="aprobada">Aprobadas</option>
                       <option value="pendiente">Pendientes</option>
                       <option value="rechazada">Rechazadas</option>
+                    </select>
+                  </div>
+                  <div className="relative">
+                    <FaFilter className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500" />
+                    <select
+                      value={filtroFecha}
+                      onChange={(e) => setFiltroFecha(e.target.value as "todos" | "hoy" | "mes")}
+                      className="pl-10 pr-8 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 appearance-none cursor-pointer"
+                    >
+                      <option value="todos">Todas las fechas</option>
+                      <option value="hoy">Hoy</option>
+                      <option value="mes">Este mes</option>
                     </select>
                   </div>
                 </div>
@@ -612,7 +789,7 @@ export default function ComprasPage() {
                       Mostrando {comprasFiltradas.length} de {compras.length} compras
                     </span>
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                      Total mostrado: ${comprasFiltradas.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0).toLocaleString()}
+                      Total mostrado: ${comprasFiltradas.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>

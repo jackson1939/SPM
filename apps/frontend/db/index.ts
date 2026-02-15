@@ -4,7 +4,7 @@ import { Pool, PoolConfig } from 'pg';
 
 // For Vercel/serverless: use Neon serverless driver
 // For local development: use regular pg Pool
-const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+const isVercel = !!process.env.VERCEL || !!process.env.VERCEL_ENV || process.env.NODE_ENV === 'production';
 
 let pool: Pool | null = null;
 let neonClient: any = null;
@@ -25,15 +25,23 @@ function getNeonClient(): DbClient {
         throw new Error('DATABASE_URL environment variable is not set');
       }
 
+      // Neon serverless client - it supports PostgreSQL parameterized queries ($1, $2, etc.)
       const neonQuery = neon(connectionString);
       
       // Wrap Neon client to match pg Pool interface
       // Neon returns array directly, pg Pool returns { rows: array }
       neonClient = {
         query: async (text: string, params?: any[]) => {
-          const result = await neonQuery(text, params);
-          // Neon returns array directly, wrap it to match pg format
-          return { rows: Array.isArray(result) ? result : [result] };
+          try {
+            // Neon supports PostgreSQL-style parameterized queries
+            // Just pass the query and params directly
+            const result = await neonQuery(text, params || []);
+            // Neon returns array directly, wrap it to match pg format
+            return { rows: Array.isArray(result) ? result : [result] };
+          } catch (error: any) {
+            console.error('Neon query error:', error);
+            throw error;
+          }
         }
       };
       

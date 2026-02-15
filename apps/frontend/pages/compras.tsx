@@ -1,5 +1,5 @@
 // apps/frontend/pages/compras.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
@@ -11,11 +11,22 @@ import {
   FaSearch,
   FaCheckCircle,
   FaClock,
-  FaTimesCircle
+  FaTimesCircle,
+  FaExclamationTriangle,
+  FaBox
 } from "react-icons/fa";
 
+interface Producto {
+  id: string;
+  nombre: string;
+  precio: number;
+  stock: number;
+}
+
 interface Compra {
+  id?: string;
   producto: string;
+  producto_id?: string;
   cantidad: number;
   costo_unitario: number;
   fecha: string;
@@ -23,41 +34,113 @@ interface Compra {
 }
 
 export default function ComprasPage() {
+  // Estados para compras
   const [compras, setCompras] = useState<Compra[]>([]);
   const [producto, setProducto] = useState("");
+  const [productoId, setProductoId] = useState("");
   const [cantidad, setCantidad] = useState(0);
   const [costo, setCosto] = useState(0);
   const [codigo, setCodigo] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterEstado, setFilterEstado] = useState<string>("todos");
+  
+  // Estados para productos
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [mensaje, setMensaje] = useState<{ tipo: "success" | "error" | "warning", texto: string } | null>(null);
 
-  const handleRegistrarCompra = (e: React.FormEvent) => {
+  // Cargar productos disponibles desde el backend
+  useEffect(() => {
+    cargarProductos();
+  }, []);
+
+  const cargarProductos = async () => {
+    try {
+      const res = await fetch("https://spm-blond-two.vercel.app/productos");
+      if (res.ok) {
+        const data = await res.json();
+        setProductos(data);
+      }
+    } catch (error) {
+      console.error("Error al cargar productos:", error);
+      mostrarMensaje("warning", "Modo offline: usando productos locales");
+    }
+  };
+
+  const mostrarMensaje = (tipo: "success" | "error" | "warning", texto: string) => {
+    setMensaje({ tipo, texto });
+    setTimeout(() => setMensaje(null), 5000);
+  };
+
+  const handleRegistrarCompra = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Código de autorización estático
+    // Validación del código de autorización
     if (codigo !== "1234") {
-      alert("❌ Código de autorización inválido");
+      mostrarMensaje("error", "❌ Código de autorización inválido");
       return;
     }
 
+    // Validaciones adicionales
+    if (cantidad < 1) {
+      mostrarMensaje("error", "La cantidad debe ser mayor a 0");
+      return;
+    }
+
+    if (costo < 0) {
+      mostrarMensaje("error", "El costo no puede ser negativo");
+      return;
+    }
+
+    setLoading(true);
+
     const nuevaCompra: Compra = {
-      producto,
+      producto: producto || productos.find(p => p.id === productoId)?.nombre || "",
+      producto_id: productoId,
       cantidad,
       costo_unitario: costo,
       fecha: new Date().toISOString().split("T")[0],
       estado: "aprobada",
     };
 
-    setCompras([...compras, nuevaCompra]);
+    try {
+      // Intentar registrar en el backend
+      const res = await fetch("https://spm-blond-two.vercel.app/compras", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          producto_id: productoId,
+          producto_nombre: nuevaCompra.producto,
+          cantidad,
+          costo_unitario: costo,
+        }),
+      });
 
-    // Resetear formulario
-    setProducto("");
-    setCantidad(0);
-    setCosto(0);
-    setCodigo("");
-
-    // Mostrar mensaje de éxito
-    alert("✅ Compra registrada exitosamente");
+      if (res.ok) {
+        const data = await res.json();
+        setCompras([{ ...nuevaCompra, id: data.id }, ...compras]);
+        mostrarMensaje("success", "✅ Compra registrada exitosamente en el servidor");
+        
+        // Recargar productos para actualizar stock si es necesario
+        cargarProductos();
+      } else {
+        throw new Error("Error en el servidor");
+      }
+    } catch (error) {
+      // Modo offline: guardar localmente
+      console.log("Guardando compra localmente:", error);
+      setCompras([nuevaCompra, ...compras]);
+      mostrarMensaje("warning", "⚠️ Compra guardada localmente (sin conexión al servidor)");
+    } finally {
+      setLoading(false);
+      
+      // Resetear formulario
+      setProducto("");
+      setProductoId("");
+      setCantidad(0);
+      setCosto(0);
+      setCodigo("");
+    }
   };
 
   // Filtrar compras
@@ -67,9 +150,16 @@ export default function ComprasPage() {
     return matchesSearch && matchesEstado;
   });
 
+  // Filtrar productos por búsqueda
+  const productosFiltrados = productos.filter((p) => 
+    p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   // Calcular totales
   const totalCompras = compras.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0);
   const comprasAprobadas = compras.filter(c => c.estado === "aprobada").length;
+  const productoSeleccionado = productos.find(p => p.id === productoId);
 
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
@@ -97,6 +187,19 @@ export default function ComprasPage() {
     }
   };
 
+  const getMensajeColor = (tipo: string) => {
+    switch (tipo) {
+      case "success":
+        return "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400";
+      case "error":
+        return "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400";
+      case "warning":
+        return "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400";
+      default:
+        return "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400";
+    }
+  };
+
   return (
     <>
       <Head>
@@ -121,8 +224,18 @@ export default function ComprasPage() {
           </Link>
         </div>
 
+        {/* Mensaje de notificación */}
+        {mensaje && (
+          <div className={`p-4 rounded-lg border ${getMensajeColor(mensaje.tipo)} flex items-center gap-2`}>
+            {mensaje.tipo === "success" && <FaCheckCircle />}
+            {mensaje.tipo === "error" && <FaExclamationTriangle />}
+            {mensaje.tipo === "warning" && <FaExclamationTriangle />}
+            <span className="font-medium">{mensaje.texto}</span>
+          </div>
+        )}
+
         {/* Estadísticas rápidas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-600 dark:to-blue-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Total Compras</h3>
             <p className="text-3xl font-bold mt-2">{compras.length}</p>
@@ -134,6 +247,10 @@ export default function ComprasPage() {
           <div className="bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-600 dark:to-purple-800 rounded-xl shadow-lg p-6 text-white">
             <h3 className="text-sm font-medium opacity-90">Monto Total</h3>
             <p className="text-3xl font-bold mt-2">${totalCompras.toLocaleString()}</p>
+          </div>
+          <div className="bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-600 dark:to-orange-800 rounded-xl shadow-lg p-6 text-white">
+            <h3 className="text-sm font-medium opacity-90">Productos</h3>
+            <p className="text-3xl font-bold mt-2">{productos.length}</p>
           </div>
         </div>
 
@@ -154,19 +271,84 @@ export default function ComprasPage() {
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Producto
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Nombre del producto"
-                    value={producto}
-                    onChange={(e) => setProducto(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
-                    required
-                  />
-                </div>
+                {/* Buscador de productos (si hay productos cargados) */}
+                {productos.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Buscar Producto en Inventario
+                    </label>
+                    <div className="relative">
+                      <FaSearch className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por nombre o ID..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Selector de producto del inventario */}
+                {productos.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Producto del Inventario
+                    </label>
+                    <select
+                      value={productoId}
+                      onChange={(e) => {
+                        setProductoId(e.target.value);
+                        const prod = productos.find(p => p.id === e.target.value);
+                        if (prod) {
+                          setProducto(prod.nombre);
+                        }
+                      }}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 appearance-none cursor-pointer"
+                    >
+                      <option value="">Selecciona un producto</option>
+                      {productosFiltrados.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre} - Stock actual: {p.stock}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Información del producto seleccionado */}
+                {productoSeleccionado && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                      <FaBox />
+                      <span className="text-sm font-medium">{productoSeleccionado.nombre}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Stock actual: <span className="font-semibold">{productoSeleccionado.stock} unidades</span>
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Precio de venta: <span className="font-semibold">${productoSeleccionado.precio}</span>
+                    </p>
+                  </div>
+                )}
+
+                {/* Campo manual de producto (si no hay en inventario) */}
+                {productos.length === 0 || !productoId ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Producto {productos.length > 0 ? "(o ingresa uno nuevo)" : ""}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Nombre del producto"
+                      value={producto}
+                      onChange={(e) => setProducto(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                      required={!productoId}
+                    />
+                  </div>
+                ) : null}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -220,20 +402,35 @@ export default function ComprasPage() {
                 </div>
 
                 {cantidad > 0 && costo > 0 && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Total estimado:</p>
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                       ${(cantidad * costo).toFixed(2)}
                     </p>
+                    {productoSeleccionado && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Stock después de compra: {productoSeleccionado.stock + cantidad} unidades
+                      </p>
+                    )}
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 dark:from-blue-600 dark:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white py-3 px-4 rounded-lg font-medium shadow-md hover:shadow-xl transition-all duration-200"
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 dark:from-blue-600 dark:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800 text-white py-3 px-4 rounded-lg font-medium shadow-md hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <FaPlus />
-                  Registrar Compra
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <FaPlus />
+                      Registrar Compra
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -265,7 +462,7 @@ export default function ComprasPage() {
                     <FaSearch className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500" />
                     <input
                       type="text"
-                      placeholder="Buscar producto..."
+                      placeholder="Buscar producto en compras..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"

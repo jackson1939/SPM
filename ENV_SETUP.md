@@ -44,3 +44,4 @@ DATABASE_URL_UNPOOLED=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-a
 - Si necesitas crear la tabla, ejecuta las migraciones de Prisma: `npm run db:migrate`
 
 
+

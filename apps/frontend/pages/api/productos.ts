@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import pool from "../../db"; // conexión a Neon/Postgres
+import getDbClient from "../../db"; // conexión a Neon/Postgres
 
 // GET: obtener todos los productos
 // POST: agregar un nuevo producto
@@ -8,8 +8,10 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
+    const db = getDbClient(); // Get database client (pool or Neon) for this request
+    
     if (req.method === "GET") {
-      const result = await pool.query(
+      const result = await db.query(
         "SELECT * FROM productos ORDER BY id ASC"
       );
       return res.status(200).json(result.rows);
@@ -56,7 +58,7 @@ export default async function handler(
       }
 
       // Validar que el código de barras no exista
-      const existingProduct = await pool.query(
+      const existingProduct = await db.query(
         "SELECT id FROM productos WHERE codigo_barras = $1",
         [codigo_barras.trim()]
       );
@@ -68,7 +70,7 @@ export default async function handler(
       }
 
       // Insertar nuevo producto
-      const result = await pool.query(
+      const result = await db.query(
         "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
         [codigo_barras.trim(), nombre.trim(), precioNum, stockNum]
       );
@@ -95,9 +97,20 @@ export default async function handler(
       });
     }
 
+    // Log full error for debugging
+    console.error("Full error details:", {
+      message: error.message,
+      code: error.code,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+    });
+
     return res.status(500).json({ 
       error: "Error interno del servidor",
-      message: process.env.NODE_ENV === "development" ? error.message : undefined
+      message: process.env.NODE_ENV === "development" ? error.message : undefined,
+      details: process.env.NODE_ENV === "development" ? {
+        code: error.code,
+        hint: error.hint
+      } : undefined
     });
   }
 }

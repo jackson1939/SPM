@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import pool from "../../db";
+import getDbClient from "../../db";
 
 // GET: obtener todas las compras
 // POST: registrar una nueva compra
@@ -8,8 +8,10 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
+    const db = getDbClient(); // Get database client (pool or Neon) for this request
+    
     if (req.method === "GET") {
-      const result = await pool.query(
+      const result = await db.query(
         `SELECT c.id, c.producto_id, p.nombre as producto, c.cantidad, c.costo_unitario, c.fecha
          FROM compras c
          JOIN productos p ON c.producto_id = p.id
@@ -44,7 +46,7 @@ export default async function handler(
       }
 
       // Verificar que el producto existe
-      const productoRes = await pool.query(
+      const productoRes = await db.query(
         "SELECT * FROM productos WHERE id = $1",
         [producto_id]
       );
@@ -54,13 +56,13 @@ export default async function handler(
       }
 
       // Registrar compra
-      const compraRes = await pool.query(
+      const compraRes = await db.query(
         "INSERT INTO compras (producto_id, cantidad, costo_unitario) VALUES ($1, $2, $3) RETURNING *",
         [producto_id, cantidadNum, costoNum]
       );
 
       // Actualizar stock del producto
-      await pool.query(
+      await db.query(
         "UPDATE productos SET stock = stock + $1 WHERE id = $2",
         [cantidadNum, producto_id]
       );
@@ -86,9 +88,20 @@ export default async function handler(
       });
     }
 
+    // Log full error for debugging
+    console.error("Full error details:", {
+      message: error.message,
+      code: error.code,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+    });
+
     return res.status(500).json({ 
       error: "Error interno del servidor",
-      message: process.env.NODE_ENV === "development" ? error.message : undefined
+      message: process.env.NODE_ENV === "development" ? error.message : undefined,
+      details: process.env.NODE_ENV === "development" ? {
+        code: error.code,
+        hint: error.hint
+      } : undefined
     });
   }
 }

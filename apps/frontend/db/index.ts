@@ -1,9 +1,50 @@
-// Database connection pool for Next.js API routes
+// Database connection for Next.js API routes
+// Uses Neon serverless driver in Vercel, regular pg Pool in development
 import { Pool, PoolConfig } from 'pg';
 
-// Create a connection pool
-// Using singleton pattern to reuse the same pool across requests
+// For Vercel/serverless: use Neon serverless driver
+// For local development: use regular pg Pool
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+
 let pool: Pool | null = null;
+let neonClient: any = null;
+
+// Interface for database client (pool or neon client)
+interface DbClient {
+  query: (text: string, params?: any[]) => Promise<{ rows: any[] }>;
+}
+
+function getNeonClient(): DbClient {
+  if (!neonClient) {
+    try {
+      // Dynamic import for Neon serverless (only in Vercel)
+      const { neon } = require('@neondatabase/serverless');
+      const connectionString = process.env.DATABASE_URL;
+      
+      if (!connectionString) {
+        throw new Error('DATABASE_URL environment variable is not set');
+      }
+
+      const neonQuery = neon(connectionString);
+      
+      // Wrap Neon client to match pg Pool interface
+      // Neon returns array directly, pg Pool returns { rows: array }
+      neonClient = {
+        query: async (text: string, params?: any[]) => {
+          const result = await neonQuery(text, params);
+          // Neon returns array directly, wrap it to match pg format
+          return { rows: Array.isArray(result) ? result : [result] };
+        }
+      };
+      
+      console.log('✅ Using Neon serverless driver');
+    } catch (error: any) {
+      console.error('Failed to initialize Neon client:', error.message);
+      throw error;
+    }
+  }
+  return neonClient;
+}
 
 function getPool(): Pool {
   if (!pool) {
@@ -12,16 +53,16 @@ function getPool(): Pool {
     if (!connectionString) {
       throw new Error(
         'DATABASE_URL environment variable is not set. ' +
-        'Please create a .env.local file in apps/frontend/ with your database connection string.'
+        'Please configure it in Vercel Environment Variables or create a .env.local file.'
       );
     }
 
     const poolConfig: PoolConfig = {
       connectionString,
-      // Connection pool configuration
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 10000, // Return an error after 10 seconds if connection could not be established
+      // Connection pool configuration for local development
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
       ssl: {
         rejectUnauthorized: false, // Required for Neon PostgreSQL
       },
@@ -32,7 +73,7 @@ function getPool(): Pool {
     // Handle pool errors
     pool.on('error', (err) => {
       console.error('Unexpected error on idle client', err);
-      // Don't throw here, just log. The pool will handle reconnection.
+      pool = null;
     });
 
     // Test connection on startup (only in development)
@@ -50,9 +91,20 @@ function getPool(): Pool {
   return pool;
 }
 
-// Export the pool instance
-const poolInstance = getPool();
-export default poolInstance;
+// Export a function that returns the appropriate client
+// Uses Neon serverless in Vercel, regular pool in development
+export default function getDbClient(): DbClient {
+  if (isVercel) {
+    try {
+      return getNeonClient();
+    } catch (error) {
+      // Fallback to pool if Neon fails
+      console.warn('Falling back to pg Pool');
+      return getPool();
+    }
+  }
+  return getPool();
+}
 
 // Export a function to close the pool (useful for cleanup in tests)
 export function closePool(): Promise<void> {

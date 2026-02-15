@@ -15,58 +15,86 @@ async function insertarCompra(
     throw new Error("producto_id es requerido para insertar una compra");
   }
 
-  const usuarioIdDefault = 1;
+  // Intentar obtener o crear un usuario por defecto
+  let usuarioIdFinal: number | null = null;
+  try {
+    // Primero intentar obtener un usuario existente
+    const usuarioResult = await db.query("SELECT id FROM usuarios LIMIT 1");
+    if (usuarioResult.rows.length > 0) {
+      usuarioIdFinal = usuarioResult.rows[0].id;
+      console.log(`[insertarCompra] Usando usuario existente: ${usuarioIdFinal}`);
+    } else {
+      // Intentar crear un usuario por defecto
+      try {
+        const nuevoUsuario = await db.query(
+          `INSERT INTO usuarios (nombre, email, rol) 
+           VALUES ('Administrador', 'admin@spm.com', 'admin') 
+           RETURNING id`
+        );
+        usuarioIdFinal = nuevoUsuario.rows[0].id;
+        console.log(`[insertarCompra] Usuario por defecto creado: ${usuarioIdFinal}`);
+      } catch (createErr: any) {
+        // Si no se puede crear (tabla no existe o error), continuar sin usuario_id
+        console.warn(`[insertarCompra] No se pudo crear usuario, intentando sin usuario_id:`, createErr.message);
+        usuarioIdFinal = null;
+      }
+    }
+  } catch (err: any) {
+    // Si la tabla usuarios no existe, continuar sin usuario_id
+    console.warn(`[insertarCompra] Tabla usuarios no accesible, intentando sin usuario_id:`, err.message);
+    usuarioIdFinal = null;
+  }
   
-  // Lista de intentos de INSERT, probando diferentes combinaciones de columnas
+  // Lista de intentos de INSERT, probando primero SIN usuario_id, luego CON usuario_id
   // La tabla real puede tener: usuario_id, producto_id, costo, costo_unitario, total (generated o no)
   const intentos = [
-    // Intento 1: Con usuario_id, producto_id, costo (la columna requerida), SIN total (por si es GENERATED)
-    {
-      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo, estado, fecha) 
-              VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
-      params: [usuarioIdDefault, producto_id, producto_nombre, cantidad, costo_unitario]
-    },
-    // Intento 2: Con usuario_id, producto_id, costo, CON total (por si no es GENERATED)
-    {
-      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo, total, estado, fecha) 
-              VALUES ($1, $2, $3, $4, $5, $6, 'aprobada', CURRENT_DATE) RETURNING *`,
-      params: [usuarioIdDefault, producto_id, producto_nombre, cantidad, costo_unitario, total]
-    },
-    // Intento 3: Con usuario_id, producto_id, costo y costo_unitario, SIN total
-    {
-      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo, costo_unitario, estado, fecha) 
-              VALUES ($1, $2, $3, $4, $5, $6, 'aprobada', CURRENT_DATE) RETURNING *`,
-      params: [usuarioIdDefault, producto_id, producto_nombre, cantidad, costo_unitario, costo_unitario]
-    },
-    // Intento 4: Con usuario_id, producto_id, costo y costo_unitario, CON total
-    {
-      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo, costo_unitario, total, estado, fecha) 
-              VALUES ($1, $2, $3, $4, $5, $6, $7, 'aprobada', CURRENT_DATE) RETURNING *`,
-      params: [usuarioIdDefault, producto_id, producto_nombre, cantidad, costo_unitario, costo_unitario, total]
-    },
-    // Intento 5: Solo producto_id, costo (sin usuario_id), SIN total
+    // Intento 1: SIN usuario_id, solo producto_id, costo, SIN total (por si es GENERATED)
     {
       query: `INSERT INTO compras (producto_id, producto, cantidad, costo, estado, fecha) 
               VALUES ($1, $2, $3, $4, 'aprobada', CURRENT_DATE) RETURNING *`,
       params: [producto_id, producto_nombre, cantidad, costo_unitario]
     },
-    // Intento 6: Solo producto_id, costo (sin usuario_id), CON total
+    // Intento 2: SIN usuario_id, solo producto_id, costo, CON total
     {
       query: `INSERT INTO compras (producto_id, producto, cantidad, costo, total, estado, fecha) 
               VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
       params: [producto_id, producto_nombre, cantidad, costo_unitario, total]
     },
-    // Intento 7: Con costo_unitario en lugar de costo (por si la tabla solo tiene costo_unitario)
+    // Intento 3: SIN usuario_id, producto_id, costo y costo_unitario, SIN total
     {
-      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo_unitario, estado, fecha) 
+      query: `INSERT INTO compras (producto_id, producto, cantidad, costo, costo_unitario, estado, fecha) 
               VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
-      params: [usuarioIdDefault, producto_id, producto_nombre, cantidad, costo_unitario]
+      params: [producto_id, producto_nombre, cantidad, costo_unitario, costo_unitario]
     },
-    // Intento 8: Con costo_unitario y total
+    // Intento 4: SIN usuario_id, producto_id, costo y costo_unitario, CON total
     {
-      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo_unitario, total, estado, fecha) 
+      query: `INSERT INTO compras (producto_id, producto, cantidad, costo, costo_unitario, total, estado, fecha) 
               VALUES ($1, $2, $3, $4, $5, $6, 'aprobada', CURRENT_DATE) RETURNING *`,
-      params: [usuarioIdDefault, producto_id, producto_nombre, cantidad, costo_unitario, total]
+      params: [producto_id, producto_nombre, cantidad, costo_unitario, costo_unitario, total]
+    },
+    // Intento 5: CON usuario_id (si existe), producto_id, costo, SIN total
+    ...(usuarioIdFinal ? [{
+      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo, estado, fecha) 
+              VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [usuarioIdFinal, producto_id, producto_nombre, cantidad, costo_unitario]
+    }] : []),
+    // Intento 6: CON usuario_id (si existe), producto_id, costo, CON total
+    ...(usuarioIdFinal ? [{
+      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo, total, estado, fecha) 
+              VALUES ($1, $2, $3, $4, $5, $6, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [usuarioIdFinal, producto_id, producto_nombre, cantidad, costo_unitario, total]
+    }] : []),
+    // Intento 7: Con costo_unitario en lugar de costo (por si la tabla solo tiene costo_unitario), SIN usuario_id
+    {
+      query: `INSERT INTO compras (producto_id, producto, cantidad, costo_unitario, estado, fecha) 
+              VALUES ($1, $2, $3, $4, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [producto_id, producto_nombre, cantidad, costo_unitario]
+    },
+    // Intento 8: Con costo_unitario y total, SIN usuario_id
+    {
+      query: `INSERT INTO compras (producto_id, producto, cantidad, costo_unitario, total, estado, fecha) 
+              VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [producto_id, producto_nombre, cantidad, costo_unitario, total]
     }
   ];
 
@@ -81,8 +109,8 @@ async function insertarCompra(
       return result;
     } catch (err: any) {
       lastError = err;
-      // Si es error de columna inexistente, columna generada, o NOT NULL constraint, probar siguiente intento
-      if (err.code === "42703" || err.code === "428C9" || err.code === "23502") {
+      // Si es error de columna inexistente, columna generada, NOT NULL constraint, o foreign key, probar siguiente intento
+      if (err.code === "42703" || err.code === "428C9" || err.code === "23502" || err.code === "23503") {
         console.log(`[insertarCompra] Intento fallido (${err.code}): ${err.message}`);
         continue;
       }

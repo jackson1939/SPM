@@ -30,20 +30,14 @@ export default async function handler(
     if (req.method === "POST") {
       const { codigo_barras, nombre, precio, stock } = req.body;
 
-      // Validación de datos requeridos
-      if (!codigo_barras || !nombre || precio === undefined || precio === null) {
+      // Validación de datos requeridos (codigo_barras es opcional)
+      if (!nombre || precio === undefined || precio === null) {
         return res.status(400).json({ 
-          error: "Datos incompletos. Se requieren: codigo_barras, nombre y precio" 
+          error: "Datos incompletos. Se requieren: nombre y precio" 
         });
       }
 
       // Validaciones de tipos y valores
-      if (typeof codigo_barras !== "string" || codigo_barras.trim().length === 0) {
-        return res.status(400).json({ 
-          error: "El código de barras debe ser un texto válido" 
-        });
-      }
-
       if (typeof nombre !== "string" || nombre.trim().length === 0) {
         return res.status(400).json({ 
           error: "El nombre debe ser un texto válido" 
@@ -67,23 +61,56 @@ export default async function handler(
         });
       }
 
-      // Validar que el código de barras no exista
-      const existingProduct = await db.query(
-        "SELECT id FROM productos WHERE codigo_barras = $1",
-        [codigo_barras.trim()]
-      );
+      // Validar que el código de barras no exista (solo si se proporciona y la columna existe)
+      if (codigo_barras && typeof codigo_barras === "string" && codigo_barras.trim().length > 0) {
+        try {
+          const existingProduct = await db.query(
+            "SELECT id FROM productos WHERE codigo_barras = $1",
+            [codigo_barras.trim()]
+          );
 
-      if (existingProduct.rows.length > 0) {
-        return res.status(409).json({ 
-          error: "El código de barras ya existe" 
-        });
+          if (existingProduct.rows.length > 0) {
+            return res.status(409).json({ 
+              error: "El código de barras ya existe" 
+            });
+          }
+        } catch (checkError: any) {
+          // Si la columna codigo_barras no existe (error 42703), continuar sin validar
+          if (checkError.code !== "42703") {
+            throw checkError;
+          }
+          // Si la columna no existe, simplemente no validamos el código de barras
+          console.warn("Columna codigo_barras no existe, omitiendo validación");
+        }
       }
 
-      // Insertar nuevo producto
-      const result = await db.query(
-        "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
-        [codigo_barras.trim(), nombre.trim(), precioNum, stockNum]
-      );
+      // Insertar nuevo producto - intentar con codigo_barras primero, luego sin él
+      let result;
+      if (codigo_barras && typeof codigo_barras === "string" && codigo_barras.trim().length > 0) {
+        try {
+          result = await db.query(
+            "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
+            [codigo_barras.trim(), nombre.trim(), precioNum, stockNum]
+          );
+        } catch (insertError: any) {
+          // Si la columna codigo_barras no existe, insertar sin ella
+          if (insertError.code === "42703") {
+            console.warn("Columna codigo_barras no existe, insertando sin código de barras");
+            result = await db.query(
+              "INSERT INTO productos (nombre, precio, stock) VALUES ($1, $2, $3) RETURNING *",
+              [nombre.trim(), precioNum, stockNum]
+            );
+          } else {
+            throw insertError;
+          }
+        }
+      } else {
+        // Insertar sin código de barras
+        result = await db.query(
+          "INSERT INTO productos (nombre, precio, stock) VALUES ($1, $2, $3) RETURNING *",
+          [nombre.trim(), precioNum, stockNum]
+        );
+      }
 
       return res.status(201).json(result.rows[0]);
     }
@@ -122,6 +149,15 @@ export default async function handler(
       return res.status(500).json({ 
         error: "Error de configuración de base de datos",
         message: process.env.NODE_ENV === "development" ? "La tabla productos no existe" : undefined
+      });
+    }
+
+    if (error.code === "42703") {
+      // Columna no existe - puede ser que la estructura de la tabla sea diferente
+      console.error("Column does not exist:", error.message);
+      return res.status(500).json({ 
+        error: "Error de estructura de base de datos",
+        message: process.env.NODE_ENV === "development" ? error.message : undefined
       });
     }
 

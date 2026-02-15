@@ -97,33 +97,60 @@ export default async function handler(
       } 
       // Si no hay producto_id pero hay nombre_producto, crear o buscar producto
       else if (nombre_producto) {
-        // Buscar por código de barras si existe
+        // Buscar por código de barras si existe (y la columna existe en la BD)
         if (codigo_barras) {
-          const productoPorCodigo = await db.query(
-            "SELECT * FROM productos WHERE codigo_barras = $1",
-            [codigo_barras.trim()]
-          );
-          
-          if (productoPorCodigo.rows.length > 0) {
-            // Producto existe, sumar stock
-            productoIdFinal = productoPorCodigo.rows[0].id;
-            productoNombre = productoPorCodigo.rows[0].nombre;
-            await db.query(
-              "UPDATE productos SET stock = stock + $1 WHERE id = $2",
-              [cantidadNum, productoIdFinal]
+          try {
+            const productoPorCodigo = await db.query(
+              "SELECT * FROM productos WHERE codigo_barras = $1",
+              [codigo_barras.trim()]
             );
-          } else {
-            // Crear nuevo producto
-            const precioVentaNum = precio_venta ? parseFloat(precio_venta) : costoNum * 1.5; // Margen del 50% por defecto
-            const nuevoProducto = await db.query(
-              "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
-              [codigo_barras.trim(), nombre_producto.trim(), precioVentaNum, cantidadNum]
-            );
-            productoIdFinal = nuevoProducto.rows[0].id;
-            productoNombre = nuevoProducto.rows[0].nombre;
+            
+            if (productoPorCodigo.rows.length > 0) {
+              // Producto existe, sumar stock
+              productoIdFinal = productoPorCodigo.rows[0].id;
+              productoNombre = productoPorCodigo.rows[0].nombre;
+              await db.query(
+                "UPDATE productos SET stock = stock + $1 WHERE id = $2",
+                [cantidadNum, productoIdFinal]
+              );
+            } else {
+              // Crear nuevo producto
+              const precioVentaNum = precio_venta ? parseFloat(precio_venta) : costoNum * 1.5; // Margen del 50% por defecto
+              try {
+                const nuevoProducto = await db.query(
+                  "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
+                  [codigo_barras.trim(), nombre_producto.trim(), precioVentaNum, cantidadNum]
+                );
+                productoIdFinal = nuevoProducto.rows[0].id;
+                productoNombre = nuevoProducto.rows[0].nombre;
+              } catch (insertError: any) {
+                // Si la columna codigo_barras no existe, insertar sin ella
+                if (insertError.code === "42703") {
+                  console.warn("Columna codigo_barras no existe, insertando sin código de barras");
+                  const nuevoProducto = await db.query(
+                    "INSERT INTO productos (nombre, precio, stock) VALUES ($1, $2, $3) RETURNING *",
+                    [nombre_producto.trim(), precioVentaNum, cantidadNum]
+                  );
+                  productoIdFinal = nuevoProducto.rows[0].id;
+                  productoNombre = nuevoProducto.rows[0].nombre;
+                } else {
+                  throw insertError;
+                }
+              }
+            }
+          } catch (checkError: any) {
+            // Si la columna codigo_barras no existe, buscar solo por nombre
+            if (checkError.code === "42703") {
+              console.warn("Columna codigo_barras no existe, buscando solo por nombre");
+              // Continuar con búsqueda por nombre (código más abajo)
+            } else {
+              throw checkError;
+            }
           }
-        } else {
-          // Buscar por nombre
+        }
+        
+        // Si no hay codigo_barras o la columna no existe, buscar por nombre
+        if (!codigo_barras || !productoIdFinal) {
           const productoPorNombre = await db.query(
             "SELECT * FROM productos WHERE LOWER(nombre) = LOWER($1)",
             [nombre_producto.trim()]
@@ -139,14 +166,28 @@ export default async function handler(
             );
           } else {
             // Crear nuevo producto sin código de barras
-            const codigoBarrasAuto = `AUTO-${Date.now()}`;
             const precioVentaNum = precio_venta ? parseFloat(precio_venta) : costoNum * 1.5;
-            const nuevoProducto = await db.query(
-              "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
-              [codigoBarrasAuto, nombre_producto.trim(), precioVentaNum, cantidadNum]
-            );
-            productoIdFinal = nuevoProducto.rows[0].id;
-            productoNombre = nuevoProducto.rows[0].nombre;
+            try {
+              const nuevoProducto = await db.query(
+                "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
+                [`AUTO-${Date.now()}`, nombre_producto.trim(), precioVentaNum, cantidadNum]
+              );
+              productoIdFinal = nuevoProducto.rows[0].id;
+              productoNombre = nuevoProducto.rows[0].nombre;
+            } catch (insertError: any) {
+              // Si la columna codigo_barras no existe, insertar sin ella
+              if (insertError.code === "42703") {
+                console.warn("Columna codigo_barras no existe, insertando sin código de barras");
+                const nuevoProducto = await db.query(
+                  "INSERT INTO productos (nombre, precio, stock) VALUES ($1, $2, $3) RETURNING *",
+                  [nombre_producto.trim(), precioVentaNum, cantidadNum]
+                );
+                productoIdFinal = nuevoProducto.rows[0].id;
+                productoNombre = nuevoProducto.rows[0].nombre;
+              } else {
+                throw insertError;
+              }
+            }
           }
         }
       } else {

@@ -12,41 +12,55 @@ async function insertarCompra(
 ): Promise<any> {
   // Lista de intentos de INSERT, del más completo al más simple
   // NOTA: Si la tabla tiene total como GENERATED ALWAYS, no debemos incluirlo en el INSERT
+  // NOTA: usuario_id es requerido en la tabla, usamos 1 como valor por defecto
+  const usuarioIdDefault = 1;
   const intentos = [
-    // Intento 1: Estructura completa SIN total (por si es GENERATED)
+    // Intento 1: Estructura completa con usuario_id, SIN total (por si es GENERATED)
+    {
+      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo_unitario, estado, fecha) 
+              VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [usuarioIdDefault, producto_id, producto_nombre, cantidad, costo_unitario]
+    },
+    // Intento 2: Estructura completa con usuario_id, CON total (por si no es GENERATED)
+    {
+      query: `INSERT INTO compras (usuario_id, producto_id, producto, cantidad, costo_unitario, total, estado, fecha) 
+              VALUES ($1, $2, $3, $4, $5, $6, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [usuarioIdDefault, producto_id, producto_nombre, cantidad, costo_unitario, total]
+    },
+    // Intento 3: Con usuario_id, sin producto_id, SIN total
+    {
+      query: `INSERT INTO compras (usuario_id, producto, cantidad, costo_unitario, estado, fecha) 
+              VALUES ($1, $2, $3, $4, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [usuarioIdDefault, producto_nombre, cantidad, costo_unitario]
+    },
+    // Intento 4: Con usuario_id, sin producto_id, CON total
+    {
+      query: `INSERT INTO compras (usuario_id, producto, cantidad, costo_unitario, total, estado, fecha) 
+              VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
+      params: [usuarioIdDefault, producto_nombre, cantidad, costo_unitario, total]
+    },
+    // Intento 5: Estructura completa SIN usuario_id, SIN total (fallback si usuario_id no existe)
     {
       query: `INSERT INTO compras (producto_id, producto, cantidad, costo_unitario, estado, fecha) 
               VALUES ($1, $2, $3, $4, 'aprobada', CURRENT_DATE) RETURNING *`,
       params: [producto_id, producto_nombre, cantidad, costo_unitario]
     },
-    // Intento 2: Estructura completa CON total (por si no es GENERATED)
+    // Intento 6: Estructura completa SIN usuario_id, CON total (fallback si usuario_id no existe)
     {
       query: `INSERT INTO compras (producto_id, producto, cantidad, costo_unitario, total, estado, fecha) 
               VALUES ($1, $2, $3, $4, $5, 'aprobada', CURRENT_DATE) RETURNING *`,
       params: [producto_id, producto_nombre, cantidad, costo_unitario, total]
     },
-    // Intento 3: Sin producto_id, SIN total
+    // Intento 7: Sin usuario_id, sin producto_id, SIN total (fallback)
     {
       query: `INSERT INTO compras (producto, cantidad, costo_unitario, estado, fecha) 
               VALUES ($1, $2, $3, 'aprobada', CURRENT_DATE) RETURNING *`,
       params: [producto_nombre, cantidad, costo_unitario]
     },
-    // Intento 4: Sin producto_id, CON total
+    // Intento 8: Sin usuario_id, sin producto_id, CON total (fallback)
     {
       query: `INSERT INTO compras (producto, cantidad, costo_unitario, total, estado, fecha) 
               VALUES ($1, $2, $3, $4, 'aprobada', CURRENT_DATE) RETURNING *`,
-      params: [producto_nombre, cantidad, costo_unitario, total]
-    },
-    // Intento 5: Sin estado, SIN total
-    {
-      query: `INSERT INTO compras (producto, cantidad, costo_unitario) 
-              VALUES ($1, $2, $3) RETURNING *`,
-      params: [producto_nombre, cantidad, costo_unitario]
-    },
-    // Intento 6: Sin estado, CON total
-    {
-      query: `INSERT INTO compras (producto, cantidad, costo_unitario, total) 
-              VALUES ($1, $2, $3, $4) RETURNING *`,
       params: [producto_nombre, cantidad, costo_unitario, total]
     }
   ];
@@ -61,8 +75,8 @@ async function insertarCompra(
       return result;
     } catch (err: any) {
       lastError = err;
-      // Si es error de columna inexistente o de columna generada, probar siguiente intento
-      if (err.code === "42703" || err.code === "428C9") {
+      // Si es error de columna inexistente, columna generada, o NOT NULL constraint, probar siguiente intento
+      if (err.code === "42703" || err.code === "428C9" || err.code === "23502") {
         console.log(`[insertarCompra] Intento fallido (${err.code}): ${err.message}`);
         continue;
       }

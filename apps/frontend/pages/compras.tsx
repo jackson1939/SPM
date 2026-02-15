@@ -239,11 +239,9 @@ export default function ComprasPage() {
         // Recargar productos para actualizar stock
         cargarProductos();
         
-        // Recargar compras después de un pequeño delay para sincronizar con la BD
-        setTimeout(async () => {
-          console.log("[ComprasPage] Recargando compras después de registrar nueva compra");
-          await cargarCompras();
-        }, 500);
+        // Recargar compras inmediatamente para mostrar los datos actualizados
+        console.log("[ComprasPage] Recargando compras después de registrar nueva compra");
+        await cargarCompras();
         
         // Resetear formulario
         setProducto("");
@@ -358,14 +356,14 @@ export default function ComprasPage() {
     (p.codigo_barras && p.codigo_barras.toLowerCase().includes(searchProducto.toLowerCase()))
   );
 
-  // Calcular totales - usar todas las compras para estadísticas generales
+  // Calcular monto total - usar todas las compras para estadísticas generales
   // El monto total debe reflejar todas las compras, no solo las filtradas por fecha
-  const totalCompras = useMemo(() => {
+  const montoTotal = useMemo(() => {
     const total = compras.reduce((acc, c) => {
       const compraTotal = (c as any).total || ((c.cantidad || 0) * (c.costo_unitario || 0));
       return acc + (isNaN(compraTotal) ? 0 : compraTotal);
     }, 0);
-    console.log("[ComprasPage] Calculando totalCompras:", {
+    console.log("[ComprasPage] Calculando montoTotal:", {
       numCompras: compras.length,
       compras: compras.map(c => ({
         id: c.id,
@@ -521,7 +519,7 @@ export default function ComprasPage() {
               {loadingCompras ? (
                 <span className="animate-pulse">...</span>
               ) : (
-                `$${(filtroFecha !== "todos" ? montoTotalFiltrado : totalCompras).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                `$${(filtroFecha !== "todos" ? montoTotalFiltrado : montoTotal).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               )}
             </p>
           </div>

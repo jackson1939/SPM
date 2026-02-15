@@ -77,7 +77,7 @@ router.post("/", async (req: Request, res: Response) => {
       data: { 
         codigo_barras: codigo_barras.trim(),
         nombre: nombre.trim(),
-        precio: parseFloat(precio),
+        precio,
         stock: stock ? parseInt(stock) : 0,
       },
     });
@@ -127,14 +127,14 @@ router.put("/:id", async (req: Request, res: Response) => {
       if (typeof precio !== "number" || precio < 0) {
         return res.status(400).json({ error: "El precio debe ser un número positivo" });
       }
-      updateData.precio = parseFloat(precio);
+      updateData.precio = precio;
     }
 
     if (stock !== undefined) {
       if (typeof stock !== "number" || stock < 0) {
         return res.status(400).json({ error: "El stock debe ser un número positivo" });
       }
-      updateData.stock = parseInt(stock);
+      updateData.stock = stock;
     }
 
     if (codigo_barras !== undefined && codigo_barras !== productoExistente.codigo_barras) {

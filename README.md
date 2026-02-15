@@ -28,6 +28,30 @@ SPM/
 npm install
 ```
 
+## Configuración de Variables de Entorno
+
+**IMPORTANTE**: Antes de ejecutar la aplicación, debes configurar las variables de entorno.
+
+1. Crea el archivo `apps/frontend/.env.local` con:
+```env
+DATABASE_URL=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+DATABASE_URL_UNPOOLED=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+```
+
+2. Crea el archivo `packages/db/.env` con:
+```env
+DATABASE_URL=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+DATABASE_URL_UNPOOLED=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+```
+
+3. Genera el cliente de Prisma y ejecuta las migraciones:
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+Ver `ENV_SETUP.md` para más detalles.
+
 ## Scripts Disponibles
 
 - `npm run dev` - Inicia el frontend en modo desarrollo

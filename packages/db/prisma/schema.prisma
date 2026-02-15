@@ -13,6 +13,8 @@ model Producto {
   codigo_barras String   @unique
   nombre        String
   precio        Float
-  stock         Int
+  stock         Int      @default(0)
   fecha_ingreso DateTime @default(now())
+
+  @@map("productos")
 }

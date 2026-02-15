@@ -25,17 +25,17 @@ function getNeonClient(): DbClient {
         throw new Error('DATABASE_URL environment variable is not set');
       }
 
-      // Neon serverless client - it supports PostgreSQL parameterized queries ($1, $2, etc.)
-      const neonQuery = neon(connectionString);
+      // Neon serverless client - use sql.query() for parameterized queries
+      const sql = neon(connectionString);
       
       // Wrap Neon client to match pg Pool interface
       // Neon returns array directly, pg Pool returns { rows: array }
       neonClient = {
         query: async (text: string, params?: any[]) => {
           try {
-            // Neon supports PostgreSQL-style parameterized queries
-            // Just pass the query and params directly
-            const result = await neonQuery(text, params || []);
+            // Use sql.query() for parameterized queries with $1, $2 placeholders
+            // This is the new API for Neon serverless
+            const result = await sql.query(text, params || []);
             // Neon returns array directly, wrap it to match pg format
             // Handle both array results and single row results
             if (Array.isArray(result)) {
@@ -56,7 +56,7 @@ function getNeonClient(): DbClient {
         }
       };
       
-      console.log('✅ Using Neon serverless driver');
+      console.log('✅ Using Neon serverless driver with sql.query()');
     } catch (error: any) {
       console.error('Failed to initialize Neon client:', error.message);
       throw error;

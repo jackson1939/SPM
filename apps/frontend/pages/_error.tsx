@@ -10,6 +10,11 @@ interface ErrorProps {
   err?: Error;
 }
 
+interface ErrorInitialProps {
+  res?: { statusCode?: number };
+  err?: Error & { statusCode?: number };
+}
+
 function Error({ statusCode, hasGetInitialPropsRun, err }: ErrorProps) {
   if (!hasGetInitialPropsRun && err) {
     // getInitialProps is not called in case of
@@ -94,7 +99,7 @@ function Error({ statusCode, hasGetInitialPropsRun, err }: ErrorProps) {
   );
 }
 
-Error.getInitialProps = ({ res, err }) => {
+Error.getInitialProps = ({ res, err }: ErrorInitialProps) => {
   const statusCode = res ? res.statusCode : err ? err.statusCode : 404;
   return { statusCode, hasGetInitialPropsRun: true };
 };

@@ -6,6 +6,11 @@ const nextConfig = {
   swcMinify: true,
   // Optimizaciones para producción
   productionBrowserSourceMaps: false,
+  // Configuración de TypeScript
+  typescript: {
+    // Ignorar errores de TypeScript durante el build (solo advertencias)
+    ignoreBuildErrors: false,
+  },
 }
 
 module.exports = nextConfig

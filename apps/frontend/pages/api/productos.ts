@@ -15,7 +15,15 @@ export default async function handler(
         const result = await db.query(
           "SELECT * FROM productos ORDER BY id ASC"
         );
-        return res.status(200).json(result.rows);
+        // Convertir precio y stock a números (PostgreSQL DECIMAL se devuelve como string)
+        const productosFormateados = result.rows.map((p: any) => ({
+          ...p,
+          precio: typeof p.precio === 'string' ? parseFloat(p.precio) : p.precio,
+          stock: typeof p.stock === 'string' ? parseInt(p.stock) : p.stock,
+          // Si codigo_barras no existe, usar un valor por defecto
+          codigo_barras: p.codigo_barras || `AUTO-${p.id}`
+        }));
+        return res.status(200).json(productosFormateados);
       } catch (queryError: any) {
         console.error("Error executing productos GET query:", queryError);
         console.error("Query error details:", {
@@ -84,35 +92,42 @@ export default async function handler(
         }
       }
 
-      // Insertar nuevo producto - intentar con codigo_barras primero, luego sin él
+      // Insertar nuevo producto - intentar sin codigo_barras primero (ya que la columna no existe)
+      // Si codigo_barras está disponible, intentar con él, pero si falla, usar sin él
       let result;
-      if (codigo_barras && typeof codigo_barras === "string" && codigo_barras.trim().length > 0) {
-        try {
-          result = await db.query(
-            "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
-            [codigo_barras.trim(), nombre.trim(), precioNum, stockNum]
-          );
-        } catch (insertError: any) {
-          // Si la columna codigo_barras no existe, insertar sin ella
-          if (insertError.code === "42703") {
-            console.warn("Columna codigo_barras no existe, insertando sin código de barras");
-            result = await db.query(
-              "INSERT INTO productos (nombre, precio, stock) VALUES ($1, $2, $3) RETURNING *",
-              [nombre.trim(), precioNum, stockNum]
-            );
-          } else {
-            throw insertError;
-          }
-        }
-      } else {
-        // Insertar sin código de barras
+      try {
+        // Primero intentar sin codigo_barras (más seguro)
         result = await db.query(
           "INSERT INTO productos (nombre, precio, stock) VALUES ($1, $2, $3) RETURNING *",
           [nombre.trim(), precioNum, stockNum]
         );
+      } catch (insertError: any) {
+        // Si falla por otra razón que no sea codigo_barras, lanzar el error
+        if (insertError.code !== "42703") {
+          throw insertError;
+        }
+        // Si es error de columna, intentar con codigo_barras (aunque probablemente también falle)
+        // Pero esto es un fallback
+        if (codigo_barras && typeof codigo_barras === "string" && codigo_barras.trim().length > 0) {
+          result = await db.query(
+            "INSERT INTO productos (codigo_barras, nombre, precio, stock) VALUES ($1, $2, $3, $4) RETURNING *",
+            [codigo_barras.trim(), nombre.trim(), precioNum, stockNum]
+          );
+        } else {
+          throw insertError;
+        }
       }
 
-      return res.status(201).json(result.rows[0]);
+      // Formatear la respuesta para asegurar tipos correctos
+      const producto = result.rows[0];
+      const productoFormateado = {
+        ...producto,
+        precio: typeof producto.precio === 'string' ? parseFloat(producto.precio) : producto.precio,
+        stock: typeof producto.stock === 'string' ? parseInt(producto.stock) : producto.stock,
+        codigo_barras: producto.codigo_barras || `AUTO-${producto.id}`
+      };
+
+      return res.status(201).json(productoFormateado);
     }
 
     return res.status(405).json({ error: "Método no permitido" });

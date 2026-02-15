@@ -54,7 +54,14 @@ export default function ProductosPage() {
           throw new Error(errorData.error || "Error al cargar productos");
         }
         const data = await res.json();
-        setProductos(data);
+        // Asegurar que precio y stock sean números
+        const productosFormateados = data.map((p: any) => ({
+          ...p,
+          precio: typeof p.precio === 'string' ? parseFloat(p.precio) : (typeof p.precio === 'number' ? p.precio : 0),
+          stock: typeof p.stock === 'string' ? parseInt(p.stock) : (typeof p.stock === 'number' ? p.stock : 0),
+          codigo_barras: p.codigo_barras || `AUTO-${p.id}`
+        }));
+        setProductos(productosFormateados);
       } catch (err: any) {
         setError(err.message || "Error al cargar productos");
         console.error("Error:", err);
@@ -71,12 +78,7 @@ export default function ProductosPage() {
     setError(null);
     setSuccess(null);
 
-    // Validación en el frontend
-    if (!nuevoProducto.codigo_barras.trim()) {
-      setError("El código de barras es requerido");
-      return;
-    }
-
+    // Validación en el frontend (codigo_barras es opcional)
     if (!nuevoProducto.nombre.trim()) {
       setError("El nombre es requerido");
       return;
@@ -99,7 +101,7 @@ export default function ProductosPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          codigo_barras: nuevoProducto.codigo_barras.trim(),
+          codigo_barras: nuevoProducto.codigo_barras.trim() || undefined,
           nombre: nuevoProducto.nombre.trim(),
           precio: nuevoProducto.precio,
           stock: nuevoProducto.stock,
@@ -283,18 +285,17 @@ export default function ProductosPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <div className="flex items-center gap-2">
                       <FaBarcode />
-                      Código de Barras
+                      Código de Barras <span className="text-gray-500 dark:text-gray-400 text-xs">(opcional)</span>
                     </div>
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej: 7501234567890"
+                    placeholder="Ej: 7501234567890 (opcional)"
                     value={nuevoProducto.codigo_barras}
                     onChange={(e) =>
                       setNuevoProducto({ ...nuevoProducto, codigo_barras: e.target.value })
                     }
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
-                    required
                   />
                 </div>
 
@@ -499,7 +500,7 @@ export default function ProductosPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="font-semibold text-gray-900 dark:text-white">
-                              ${p.precio.toFixed(2)}
+                              ${(typeof p.precio === 'number' ? p.precio : parseFloat(p.precio || '0')).toFixed(2)}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">

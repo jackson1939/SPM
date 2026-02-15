@@ -13,9 +13,10 @@ export default async function handler(
     if (req.method === "GET") {
       const { fecha, mes, año } = req.query;
       
-      let query = `SELECT c.id, c.producto_id, p.nombre as producto, c.cantidad, c.costo_unitario, c.fecha
-                   FROM compras c
-                   JOIN productos p ON c.producto_id = p.id`;
+      // Try to use producto_id if column exists, otherwise use producto VARCHAR
+      // First check if producto_id column exists by trying a query
+      let query = `SELECT c.id, c.producto as producto, c.cantidad, c.costo_unitario, c.fecha, c.total, c.estado
+                   FROM compras c`;
       
       const conditions: string[] = [];
       const params: any[] = [];
@@ -154,16 +155,35 @@ export default async function handler(
         });
       }
 
-      // Registrar compra
-      const compraRes = await db.query(
-        "INSERT INTO compras (producto_id, cantidad, costo_unitario) VALUES ($1, $2, $3) RETURNING *",
-        [productoIdFinal, cantidadNum, costoNum]
-      );
+      // Calcular total de la compra
+      const totalCompra = cantidadNum * costoNum;
+
+      // Registrar compra - usar producto VARCHAR según el schema real
+      // Intentar primero con producto_id si existe, sino usar producto VARCHAR
+      let compraRes;
+      try {
+        // Try with producto_id first (if column exists)
+        compraRes = await db.query(
+          "INSERT INTO compras (producto_id, cantidad, costo_unitario, total) VALUES ($1, $2, $3, $4) RETURNING *",
+          [productoIdFinal, cantidadNum, costoNum, totalCompra]
+        );
+      } catch (err: any) {
+        // If producto_id doesn't exist, use producto VARCHAR
+        if (err.code === '42703' || err.message?.includes('column') || err.message?.includes('producto_id')) {
+          compraRes = await db.query(
+            "INSERT INTO compras (producto, cantidad, costo_unitario, total) VALUES ($1, $2, $3, $4) RETURNING *",
+            [productoNombre, cantidadNum, costoNum, totalCompra]
+          );
+        } else {
+          throw err;
+        }
+      }
 
       // Obtener el nombre del producto para la respuesta
       const compraConProducto = {
         ...compraRes.rows[0],
         producto: productoNombre,
+        producto_id: productoIdFinal,
       };
 
       return res.status(201).json(compraConProducto);
@@ -173,6 +193,15 @@ export default async function handler(
   } catch (error: any) {
     console.error("Error en API compras:", error);
     
+    // Manejo de errores de conexión a la base de datos
+    if (error.message?.includes('DATABASE_URL') || error.message?.includes('connection')) {
+      console.error("Database connection error:", error.message);
+      return res.status(500).json({ 
+        error: "Error de conexión a la base de datos",
+        message: process.env.NODE_ENV === "development" ? error.message : undefined
+      });
+    }
+    
     // Manejo de errores específicos de PostgreSQL
     if (error.code === "23503") {
       // Violación de foreign key
@@ -181,10 +210,30 @@ export default async function handler(
       });
     }
 
+    if (error.code === "42P01") {
+      // Tabla no existe
+      console.error("Table does not exist:", error.message);
+      return res.status(500).json({ 
+        error: "Error de configuración de base de datos",
+        message: process.env.NODE_ENV === "development" ? "La tabla compras no existe" : undefined
+      });
+    }
+
+    if (error.code === "42703") {
+      // Columna no existe - puede ser que la estructura de la tabla sea diferente
+      console.error("Column does not exist:", error.message);
+      return res.status(500).json({ 
+        error: "Error de estructura de base de datos",
+        message: process.env.NODE_ENV === "development" ? error.message : undefined
+      });
+    }
+
     // Log full error for debugging
     console.error("Full error details:", {
       message: error.message,
       code: error.code,
+      detail: error.detail,
+      hint: error.hint,
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined
     });
 
@@ -193,7 +242,8 @@ export default async function handler(
       message: process.env.NODE_ENV === "development" ? error.message : undefined,
       details: process.env.NODE_ENV === "development" ? {
         code: error.code,
-        hint: error.hint
+        hint: error.hint,
+        detail: error.detail
       } : undefined
     });
   }

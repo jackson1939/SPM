@@ -11,10 +11,20 @@ export default async function handler(
     const db = getDbClient(); // Get database client (pool or Neon) for this request
     
     if (req.method === "GET") {
-      const result = await db.query(
-        "SELECT * FROM productos ORDER BY id ASC"
-      );
-      return res.status(200).json(result.rows);
+      try {
+        const result = await db.query(
+          "SELECT * FROM productos ORDER BY id ASC"
+        );
+        return res.status(200).json(result.rows);
+      } catch (queryError: any) {
+        console.error("Error executing productos GET query:", queryError);
+        console.error("Query error details:", {
+          message: queryError.message,
+          code: queryError.code,
+          detail: queryError.detail
+        });
+        throw queryError;
+      }
     }
 
     if (req.method === "POST") {
@@ -82,6 +92,15 @@ export default async function handler(
   } catch (error: any) {
     console.error("Error en API productos:", error);
     
+    // Manejo de errores de conexión a la base de datos
+    if (error.message?.includes('DATABASE_URL') || error.message?.includes('connection')) {
+      console.error("Database connection error:", error.message);
+      return res.status(500).json({ 
+        error: "Error de conexión a la base de datos",
+        message: process.env.NODE_ENV === "development" ? error.message : undefined
+      });
+    }
+    
     // Manejo de errores específicos de PostgreSQL
     if (error.code === "23505") {
       // Violación de constraint único
@@ -97,10 +116,21 @@ export default async function handler(
       });
     }
 
+    if (error.code === "42P01") {
+      // Tabla no existe
+      console.error("Table does not exist:", error.message);
+      return res.status(500).json({ 
+        error: "Error de configuración de base de datos",
+        message: process.env.NODE_ENV === "development" ? "La tabla productos no existe" : undefined
+      });
+    }
+
     // Log full error for debugging
     console.error("Full error details:", {
       message: error.message,
       code: error.code,
+      detail: error.detail,
+      hint: error.hint,
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined
     });
 
@@ -109,7 +139,8 @@ export default async function handler(
       message: process.env.NODE_ENV === "development" ? error.message : undefined,
       details: process.env.NODE_ENV === "development" ? {
         code: error.code,
-        hint: error.hint
+        hint: error.hint,
+        detail: error.detail
       } : undefined
     });
   }

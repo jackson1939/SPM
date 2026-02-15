@@ -37,9 +37,20 @@ function getNeonClient(): DbClient {
             // Just pass the query and params directly
             const result = await neonQuery(text, params || []);
             // Neon returns array directly, wrap it to match pg format
-            return { rows: Array.isArray(result) ? result : [result] };
+            // Handle both array results and single row results
+            if (Array.isArray(result)) {
+              return { rows: result };
+            } else if (result && typeof result === 'object') {
+              // Single row result
+              return { rows: [result] };
+            } else {
+              // Empty result or unexpected format
+              return { rows: [] };
+            }
           } catch (error: any) {
             console.error('Neon query error:', error);
+            console.error('Query:', text);
+            console.error('Params:', params);
             throw error;
           }
         }

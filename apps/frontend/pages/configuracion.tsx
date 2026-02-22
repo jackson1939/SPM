@@ -10,17 +10,14 @@ import {
   FaLock,
   FaBox,
   FaDollarSign,
-  FaDatabase,
   FaCheckCircle,
   FaExclamationTriangle,
-  FaSync,
   FaEye,
   FaEyeSlash,
   FaPhone,
   FaMapMarkerAlt,
   FaShieldAlt,
   FaInfoCircle,
-  FaTrash,
   FaSignOutAlt,
   FaPrint,
 } from "react-icons/fa";
@@ -88,10 +85,6 @@ export default function ConfiguracionPage() {
   // Inventario
   const [simboloMoneda, setSimboloMoneda] = useState("$");
   const [umbralStockBajo, setUmbralStockBajo] = useState(5);
-
-  // BD
-  const [migrationResult, setMigrationResult] = useState<string[] | null>(null);
-  const [runningMigration, setRunningMigration] = useState(false);
 
   // Rol
   const [role, setRole] = useState<string | null>(null);
@@ -165,21 +158,6 @@ export default function ConfiguracionPage() {
     saveConfig(updated);
     setConfig(updated);
     showSaved();
-  };
-
-  const handleRunMigrations = async () => {
-    setRunningMigration(true);
-    setMigrationResult(null);
-    try {
-      const res = await fetch("/api/migrate", { method: "POST" });
-      const data = await res.json();
-      setMigrationResult(data.results || ["Sin resultados"]);
-      sessionStorage.setItem("_spm_mig_done", "1");
-    } catch {
-      setMigrationResult(["❌ Error al conectar con el servidor"]);
-    } finally {
-      setRunningMigration(false);
-    }
   };
 
   const handleClearSession = () => {
@@ -675,138 +653,6 @@ export default function ConfiguracionPage() {
               </div>
             )}
 
-            {/* ─── SECCIÓN: SISTEMA ─── */}
-            {activeSection === "sistema" && (
-              <div className="space-y-4">
-                {/* Migraciones */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <div className="p-6 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-gray-700 dark:to-gray-800 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-orange-600 rounded-xl shadow-lg">
-                        <FaDatabase className="text-white text-xl" />
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-                          Base de Datos
-                        </h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Migraciones y mantenimiento
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-6 space-y-4">
-                    <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
-                      <p className="text-sm text-gray-700 dark:text-gray-300 mb-1 font-semibold">
-                        Migraciones pendientes
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Ejecuta las migraciones para agregar columnas y tablas nuevas (categoría, notas, historial de precios). Es seguro ejecutarlas múltiples veces.
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={handleRunMigrations}
-                      disabled={runningMigration}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 px-4 rounded-xl font-semibold shadow-md hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <FaSync className={runningMigration ? "animate-spin" : ""} />
-                      {runningMigration ? "Ejecutando..." : "Ejecutar Migraciones"}
-                    </button>
-
-                    {migrationResult && (
-                      <div className="p-4 bg-gray-900 dark:bg-black rounded-xl font-mono text-xs space-y-1">
-                        {migrationResult.map((line, i) => (
-                          <p
-                            key={i}
-                            className={
-                              line.startsWith("✅")
-                                ? "text-green-400"
-                                : line.startsWith("❌")
-                                ? "text-red-400"
-                                : "text-gray-300"
-                            }
-                          >
-                            {line}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Info del sistema */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                      <FaInfoCircle className="text-blue-500" />
-                      Información del Sistema
-                    </h3>
-                  </div>
-                  <div className="p-6 space-y-3 text-sm">
-                    {[
-                      { label: "Sistema", value: "VEROKAI POS" },
-                      { label: "Versión", value: "v1.0.0" },
-                      { label: "Framework", value: "Next.js 14" },
-                      { label: "Base de datos", value: "PostgreSQL (Neon)" },
-                      { label: "Rol activo", value: role ?? "—" },
-                      { label: "Usuario", value: config.username },
-                      { label: "Tienda", value: config.nombreTienda },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
-                        <span className="text-gray-500 dark:text-gray-400">{label}</span>
-                        <span className="font-medium text-gray-800 dark:text-white capitalize">{value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Limpiar datos locales */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-red-200 dark:border-red-900/50 overflow-hidden">
-                  <div className="p-6 border-b border-red-100 dark:border-red-900/50">
-                    <h3 className="font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
-                      <FaTrash className="text-red-500" />
-                      Zona de Peligro
-                    </h3>
-                  </div>
-                  <div className="p-6 space-y-3">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Estas acciones son irreversibles. Úsalas con precaución.
-                    </p>
-                    <button
-                      onClick={() => {
-                        if (confirm("¿Restablecer toda la configuración a los valores por defecto? Esta acción no afecta la base de datos.")) {
-                          localStorage.removeItem(CONFIG_KEY);
-                          const cfg = DEFAULT_CONFIG;
-                          saveConfig(cfg);
-                          setConfig(cfg);
-                          setNombreTienda(cfg.nombreTienda);
-                          setDireccion(cfg.direccion);
-                          setTelefono(cfg.telefono);
-                          setFooterTicket(cfg.footerTicket);
-                          setUsername(cfg.username);
-                          setSimboloMoneda(cfg.simboloMoneda);
-                          setUmbralStockBajo(cfg.umbralStockBajo);
-                          showSaved();
-                        }
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg text-sm font-medium transition-all duration-200"
-                    >
-                      <FaTrash />
-                      Restablecer configuración local
-                    </button>
-                    <button
-                      onClick={handleClearSession}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-medium transition-all duration-200"
-                    >
-                      <FaSignOutAlt />
-                      Cerrar sesión
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

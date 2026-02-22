@@ -1,5 +1,5 @@
 // apps/frontend/pages/ventas.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
@@ -39,18 +39,40 @@ export default function VentasPage() {
   const [ventaCompletada, setVentaCompletada] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Estados para entrada manual
   const [mostrarManual, setMostrarManual] = useState(false);
   const [productoManual, setProductoManual] = useState({ nombre: "", precio: 0 });
-  
+
   // Estado para sugerencias de búsqueda
   const [sugerencias, setSugerencias] = useState<Producto[]>([]);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
 
+  // Ref para el input del escáner — siempre debe tener foco
+  const codigoInputRef = useRef<HTMLInputElement>(null);
+
   // Cargar productos desde la API
   useEffect(() => {
     cargarProductos();
+  }, []);
+
+  // Mantener foco en el input del escáner cuando no hay otros campos activos
+  // Los escáneres físicos requieren que el input tenga foco para recibir el código
+  useEffect(() => {
+    const mantenerFoco = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const esInputOtro =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" ||
+        target.tagName === "BUTTON";
+      if (!esInputOtro && codigoInputRef.current) {
+        // Si se hace clic en una zona neutral, devolver foco al escáner
+        setTimeout(() => codigoInputRef.current?.focus(), 50);
+      }
+    };
+    document.addEventListener("click", mantenerFoco);
+    return () => document.removeEventListener("click", mantenerFoco);
   }, []);
 
   const cargarProductos = async () => {
@@ -79,16 +101,29 @@ export default function VentasPage() {
     }
   };
 
-  // Buscar sugerencias mientras escribe
+  // Buscar producto por valor (código exacto → nombre exacto → parcial)
+  const buscarProducto = useCallback((valor: string): Producto | undefined => {
+    const v = valor.trim();
+    if (!v) return undefined;
+    // 1. Código de barras exacto
+    let p = productos.find((p) => p.codigo_barras && p.codigo_barras === v);
+    // 2. Nombre exacto (insensible a mayúsculas)
+    if (!p) p = productos.find((p) => p.nombre.toLowerCase() === v.toLowerCase());
+    // 3. Código parcial
+    if (!p) p = productos.find((p) => (p.codigo_barras ?? "").toLowerCase().includes(v.toLowerCase()));
+    // 4. Nombre parcial
+    if (!p) p = productos.find((p) => p.nombre.toLowerCase().includes(v.toLowerCase()));
+    return p;
+  }, [productos]);
+
+  // Buscar sugerencias mientras escribe (para teclado manual)
   const handleBuscarProducto = (valor: string) => {
     setCodigo(valor);
-
     if (valor.length >= 1) {
       const coincidencias = productos.filter((p) =>
         (p.codigo_barras ?? "").toLowerCase().includes(valor.toLowerCase()) ||
         p.nombre.toLowerCase().includes(valor.toLowerCase())
-      ).slice(0, 5); // Limitar a 5 sugerencias
-      
+      ).slice(0, 6);
       setSugerencias(coincidencias);
       setMostrarSugerencias(coincidencias.length > 0);
     } else {
@@ -103,73 +138,55 @@ export default function VentasPage() {
     setCodigo("");
     setSugerencias([]);
     setMostrarSugerencias(false);
+    // Devolver foco al input para seguir escaneando
+    setTimeout(() => codigoInputRef.current?.focus(), 50);
   };
 
   // Agregar producto al carrito
-  const agregarProductoAlCarrito = (producto: Producto) => {
+  const agregarProductoAlCarrito = useCallback((producto: Producto) => {
     if (producto.stock <= 0) {
-      alert(`⚠️ El producto ${producto.nombre} está agotado`);
+      alert(`⚠️ "${producto.nombre}" está agotado`);
       return;
     }
-
-    // Verificar si el producto ya está en el carrito
-    const itemEnCarrito = carrito.find(
-      (item) => item.id === producto.id
-    );
-
-    if (itemEnCarrito) {
-      // Incrementar cantidad
-      setCarrito(
-        carrito.map((item) =>
-          item.id === producto.id
-            ? { ...item, cantidad: item.cantidad + 1 }
-            : item
-        )
-      );
-    } else {
-      // Agregar nuevo producto
-      setCarrito([...carrito, { ...producto, cantidad: 1 }]);
-    }
-
+    setCarrito((prev) => {
+      const existente = prev.find((i) => i.id === producto.id);
+      if (existente) {
+        return prev.map((i) =>
+          i.id === producto.id ? { ...i, cantidad: i.cantidad + 1 } : i
+        );
+      }
+      return [...prev, { ...producto, cantidad: 1 }];
+    });
     // Descontar stock localmente
-    setProductos(
-      productos.map((p) =>
-        p.id === producto.id ? { ...p, stock: p.stock - 1 } : p
-      )
+    setProductos((prev) =>
+      prev.map((p) => p.id === producto.id ? { ...p, stock: p.stock - 1 } : p)
     );
-  };
+  }, []);
 
-  const handleAgregarProducto = () => {
-    // Buscar por código de barras exacto primero
-    let producto = productos.find(
-      (p) => p.codigo_barras && p.codigo_barras === codigo
-    );
+  // Agregar desde el input (tecla Enter o botón)
+  // Usado tanto por teclado manual como por el lector de código de barras
+  const handleAgregarProducto = useCallback(() => {
+    const trimmed = codigo.trim();
+    if (!trimmed) return;
 
-    // Si no encuentra, buscar por nombre exacto
-    if (!producto) {
-      producto = productos.find(
-        (p) => p.nombre.toLowerCase() === codigo.toLowerCase()
-      );
-    }
-
-    // Si aún no encuentra, buscar parcialmente por código o nombre
-    if (!producto) {
-      producto = productos.find(
-        (p) =>
-          (p.codigo_barras ?? "").toLowerCase().includes(codigo.toLowerCase()) ||
-          p.nombre.toLowerCase().includes(codigo.toLowerCase())
-      );
-    }
-    
+    const producto = buscarProducto(trimmed);
     if (producto) {
       agregarProductoAlCarrito(producto);
       setCodigo("");
       setSugerencias([]);
       setMostrarSugerencias(false);
+      // Mantener foco en el input para seguir escaneando productos
+      setTimeout(() => codigoInputRef.current?.focus(), 30);
     } else {
-      alert("❌ Producto no encontrado. Puedes agregarlo manualmente.");
+      // Mostrar error sin bloquear con alert (no interrumpe el flujo del escáner)
+      setError(`Producto "${trimmed}" no encontrado`);
+      setCodigo("");
+      setTimeout(() => {
+        setError(null);
+        codigoInputRef.current?.focus();
+      }, 2500);
     }
-  };
+  }, [codigo, buscarProducto, agregarProductoAlCarrito]);
 
   // Agregar producto manualmente
   const handleAgregarManual = () => {
@@ -417,40 +434,83 @@ export default function VentasPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* Campo de búsqueda con sugerencias */}
+                  {/* Indicador de estado del escáner */}
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
+                    <span className="text-xs text-green-700 dark:text-green-400 font-medium">
+                      Escáner activo — apunta y escanea, o escribe el código
+                    </span>
+                  </div>
+
+                  {/* Campo de búsqueda / escáner */}
                   <div className="relative">
                     <div className="relative">
-                      <FaSearch className="absolute left-3 top-3.5 text-gray-400" />
+                      <FaBarcode className="absolute left-3 top-3.5 text-blue-500 dark:text-blue-400 text-lg" />
                       <input
+                        ref={codigoInputRef}
                         type="text"
-                        placeholder="Código de barras o nombre del producto..."
+                        placeholder="Escanea o escribe código / nombre..."
                         value={codigo}
                         onChange={(e) => handleBuscarProducto(e.target.value)}
-                        onKeyPress={(e) => e.key === "Enter" && handleAgregarProducto()}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            // Enter = señal del lector físico de código de barras
+                            handleAgregarProducto();
+                          }
+                          if (e.key === "Escape") {
+                            setCodigo("");
+                            setSugerencias([]);
+                            setMostrarSugerencias(false);
+                          }
+                        }}
                         onFocus={() => codigo.length > 0 && setMostrarSugerencias(sugerencias.length > 0)}
-                        onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                        onBlur={() => setTimeout(() => setMostrarSugerencias(false), 150)}
+                        className="w-full pl-10 pr-12 py-3 border-2 border-blue-300 dark:border-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 dark:focus:border-blue-400 dark:bg-gray-700 dark:text-white transition-all duration-200 text-lg font-mono tracking-wider"
                         autoFocus
+                        autoComplete="off"
+                        spellCheck={false}
                       />
+                      {codigo && (
+                        <button
+                          onClick={() => { setCodigo(""); setSugerencias([]); codigoInputRef.current?.focus(); }}
+                          className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
-                    
+
                     {/* Lista de sugerencias */}
                     {mostrarSugerencias && sugerencias.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                        {sugerencias.map((producto) => (
+                      <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-xl max-h-72 overflow-y-auto">
+                        <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            {sugerencias.length} resultado{sugerencias.length !== 1 ? "s" : ""} — haz clic o presiona Enter
+                          </p>
+                        </div>
+                        {sugerencias.map((producto, idx) => (
                           <button
                             key={producto.id}
-                            onClick={() => handleSeleccionarSugerencia(producto)}
-                            className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 transition-colors"
+                            onMouseDown={(e) => {
+                              // mouseDown en vez de onClick para ejecutarse antes del onBlur del input
+                              e.preventDefault();
+                              handleSeleccionarSugerencia(producto);
+                            }}
+                            className="w-full px-4 py-3 text-left hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-gray-100 dark:border-gray-700 last:border-b-0 transition-colors"
                           >
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <p className="font-medium text-gray-900 dark:text-white">{producto.nombre}</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{producto.codigo_barras ?? "Sin código"}</p>
+                            <div className="flex justify-between items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-gray-900 dark:text-white truncate">{producto.nombre}</p>
+                                <p className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5">
+                                  {producto.codigo_barras ?? "Sin código"}
+                                </p>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right flex-shrink-0">
                                 <p className="font-bold text-blue-600 dark:text-blue-400">${producto.precio.toFixed(2)}</p>
-                                <p className="text-xs text-gray-500">Stock: {producto.stock}</p>
+                                <p className={`text-xs font-medium ${producto.stock === 0 ? "text-red-500" : producto.stock <= 5 ? "text-yellow-500" : "text-green-500"}`}>
+                                  Stock: {producto.stock}
+                                </p>
                               </div>
                             </div>
                           </button>
@@ -458,7 +518,7 @@ export default function VentasPage() {
                       </div>
                     )}
                   </div>
-                  
+
                   <button
                     onClick={handleAgregarProducto}
                     disabled={!codigo.trim()}

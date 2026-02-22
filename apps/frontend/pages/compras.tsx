@@ -3,10 +3,11 @@ import React, { useState, useEffect, useMemo } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
-import { 
-  FaArrowLeft, 
-  FaPlus, 
-  FaFileExcel, 
+import { formatPrecio } from "../utils/formatPrecio";
+import {
+  FaArrowLeft,
+  FaPlus,
+  FaFileExcel,
   FaFilter,
   FaSearch,
   FaCheckCircle,
@@ -14,7 +15,8 @@ import {
   FaTimesCircle,
   FaExclamationTriangle,
   FaBox,
-  FaBarcode
+  FaBarcode,
+  FaShieldAlt,
 } from "react-icons/fa";
 
 interface Producto {
@@ -55,6 +57,30 @@ export default function ComprasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "success" | "error" | "warning", texto: string } | null>(null);
+
+  // Código de autorización (lee del config guardado en localStorage)
+  const [authCode, setAuthCode] = useState("1234");
+
+  // Intentos denegados en la sesión actual (código de autorización incorrecto)
+  interface IntentoDenegado {
+    producto: string;
+    cantidad: number;
+    costo: number;
+    fecha: string;
+    motivo: string;
+  }
+  const [intentosDenegados, setIntentosDenegados] = useState<IntentoDenegado[]>([]);
+
+  // Cargar auth code desde configuración
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("spm_config");
+      if (raw) {
+        const cfg = JSON.parse(raw);
+        if (cfg.pin) setAuthCode(cfg.pin);
+      }
+    } catch {}
+  }, []);
 
   // Cargar productos y compras desde el backend
   useEffect(() => {
@@ -154,8 +180,22 @@ export default function ComprasPage() {
     e.preventDefault();
 
     // Validación del código de autorización
-    if (codigo !== "1234") {
-      mostrarMensaje("error", "❌ Código de autorización inválido");
+    if (codigo !== authCode) {
+      const nombreProducto = productoId
+        ? (productos.find((p) => p.id === productoId)?.nombre ?? producto)
+        : producto.trim() || "Sin especificar";
+      setIntentosDenegados((prev) => [
+        {
+          producto: nombreProducto,
+          cantidad,
+          costo,
+          fecha: new Date().toLocaleString("es-ES"),
+          motivo: "Código de autorización incorrecto",
+        },
+        ...prev,
+      ]);
+      mostrarMensaje("error", "❌ Código de autorización inválido — el intento ha sido registrado");
+      setCodigo("");
       return;
     }
 
@@ -389,6 +429,10 @@ export default function ComprasPage() {
   
   // Total de compras (todas)
   const totalComprasCount = compras.length;
+
+  // Rechazadas desde BD + intentos denegados en sesión
+  const comprasRechazadasDB = useMemo(() => compras.filter((c) => c.estado === "rechazada").length, [compras]);
+  const totalDenegadas = comprasRechazadasDB + intentosDenegados.length;
   
   // Monto total filtrado por fecha (para mostrar en la tarjeta si hay filtro)
   const montoTotalFiltrado = useMemo(() => {
@@ -490,44 +534,82 @@ export default function ComprasPage() {
         )}
 
         {/* Estadísticas rápidas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-600 dark:to-blue-800 rounded-xl shadow-lg p-6 text-white">
-            <h3 className="text-sm font-medium opacity-90">Total Compras</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-600 dark:to-blue-800 rounded-xl shadow-lg p-5 text-white">
+            <h3 className="text-xs font-medium opacity-90 uppercase tracking-wide">Total Compras</h3>
             <p className="text-3xl font-bold mt-2">
-              {loadingCompras ? (
-                <span className="animate-pulse">...</span>
-              ) : (
-                totalComprasCount
-              )}
+              {loadingCompras ? <span className="animate-pulse">...</span> : totalComprasCount}
+            </p>
+            <p className="text-xs opacity-70 mt-1">registradas</p>
+          </div>
+          <div className="bg-gradient-to-br from-green-400 to-green-600 dark:from-green-600 dark:to-green-800 rounded-xl shadow-lg p-5 text-white">
+            <h3 className="text-xs font-medium opacity-90 uppercase tracking-wide">Aprobadas</h3>
+            <p className="text-3xl font-bold mt-2">
+              {loadingCompras ? <span className="animate-pulse">...</span> : comprasAprobadas}
+            </p>
+            <p className="text-xs opacity-70 mt-1">exitosas</p>
+          </div>
+          <div className="bg-gradient-to-br from-red-400 to-red-600 dark:from-red-600 dark:to-red-800 rounded-xl shadow-lg p-5 text-white">
+            <h3 className="text-xs font-medium opacity-90 uppercase tracking-wide">Denegadas</h3>
+            <p className="text-3xl font-bold mt-2">{totalDenegadas}</p>
+            <p className="text-xs opacity-70 mt-1">
+              {intentosDenegados.length > 0 ? `${intentosDenegados.length} esta sesión` : "sin intentos"}
             </p>
           </div>
-          <div className="bg-gradient-to-br from-green-400 to-green-600 dark:from-green-600 dark:to-green-800 rounded-xl shadow-lg p-6 text-white">
-            <h3 className="text-sm font-medium opacity-90">Aprobadas</h3>
-            <p className="text-3xl font-bold mt-2">
-              {loadingCompras ? (
-                <span className="animate-pulse">...</span>
-              ) : (
-                comprasAprobadas
-              )}
-            </p>
-          </div>
-          <div className="bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-600 dark:to-purple-800 rounded-xl shadow-lg p-6 text-white">
-            <h3 className="text-sm font-medium opacity-90">
-              Monto Total {filtroFecha !== "todos" && `(${filtroFecha === "hoy" ? "Hoy" : "Este Mes"})`}
+          <div className="bg-gradient-to-br from-purple-400 to-purple-600 dark:from-purple-600 dark:to-purple-800 rounded-xl shadow-lg p-5 text-white">
+            <h3 className="text-xs font-medium opacity-90 uppercase tracking-wide">
+              Monto {filtroFecha !== "todos" && `(${filtroFecha === "hoy" ? "Hoy" : "Mes"})`}
             </h3>
-            <p className="text-3xl font-bold mt-2">
+            <p className="text-2xl font-bold mt-2">
               {loadingCompras ? (
                 <span className="animate-pulse">...</span>
               ) : (
-                `$${(filtroFecha !== "todos" ? montoTotalFiltrado : montoTotal).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                `$${formatPrecio(filtroFecha !== "todos" ? montoTotalFiltrado : montoTotal)}`
               )}
             </p>
           </div>
-          <div className="bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-600 dark:to-orange-800 rounded-xl shadow-lg p-6 text-white">
-            <h3 className="text-sm font-medium opacity-90">Productos</h3>
+          <div className="bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-600 dark:to-orange-800 rounded-xl shadow-lg p-5 text-white">
+            <h3 className="text-xs font-medium opacity-90 uppercase tracking-wide">Productos</h3>
             <p className="text-3xl font-bold mt-2">{productos.length}</p>
+            <p className="text-xs opacity-70 mt-1">en inventario</p>
           </div>
         </div>
+
+        {/* ─── INTENTOS DENEGADOS ─── */}
+        {intentosDenegados.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-red-200 dark:border-red-800 overflow-hidden">
+            <div className="p-4 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-gray-800 border-b border-red-200 dark:border-red-800 flex items-center justify-between">
+              <h3 className="font-bold text-red-800 dark:text-red-300 flex items-center gap-2">
+                <FaShieldAlt className="text-red-600 dark:text-red-400" />
+                Intentos Denegados — Sesión Actual ({intentosDenegados.length})
+              </h3>
+              <button
+                onClick={() => setIntentosDenegados([])}
+                className="text-xs text-red-600 dark:text-red-400 hover:underline"
+              >
+                Limpiar
+              </button>
+            </div>
+            <div className="divide-y divide-red-100 dark:divide-red-900/30 max-h-48 overflow-y-auto">
+              {intentosDenegados.map((d, i) => (
+                <div key={i} className="px-6 py-3 flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white truncate">{d.producto}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {d.fecha} — {d.cantidad} u. × ${formatPrecio(d.costo)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-full font-medium">
+                      Código incorrecto
+                    </span>
+                    <FaTimesCircle className="text-red-500 dark:text-red-400" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Formulario para registrar compra */}
@@ -610,7 +692,7 @@ export default function ComprasPage() {
                       Stock actual: <span className="font-semibold">{productoSeleccionado.stock} unidades</span>
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Precio de venta: <span className="font-semibold">${productoSeleccionado.precio}</span>
+                      Precio de venta: <span className="font-semibold">${formatPrecio(productoSeleccionado.precio)}</span>
                     </p>
                   </div>
                 )}
@@ -737,7 +819,7 @@ export default function ComprasPage() {
                     required
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Código por defecto: 1234
+                    Ingresa el PIN configurado en Configuración → Cuenta y Seguridad
                   </p>
                 </div>
 
@@ -745,7 +827,7 @@ export default function ComprasPage() {
                   <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Total estimado:</p>
                     <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                      ${(cantidad * costo).toFixed(2)}
+                      ${formatPrecio(cantidad * costo)}
                     </p>
                     {productoSeleccionado && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
@@ -909,11 +991,11 @@ export default function ComprasPage() {
                             {c.cantidad}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300">
-                            ${c.costo_unitario.toFixed(2)}
+                            ${formatPrecio(c.costo_unitario)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="font-semibold text-gray-900 dark:text-white">
-                              ${(c.cantidad * c.costo_unitario).toFixed(2)}
+                              ${formatPrecio(c.cantidad * c.costo_unitario)}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300">
@@ -937,7 +1019,7 @@ export default function ComprasPage() {
                       Mostrando {comprasFiltradas.length} de {compras.length} compras
                     </span>
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                      Total mostrado: ${comprasFiltradas.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      Total mostrado: ${formatPrecio(comprasFiltradas.reduce((acc, c) => acc + (c.cantidad * c.costo_unitario), 0))}
                     </span>
                   </div>
                 </div>

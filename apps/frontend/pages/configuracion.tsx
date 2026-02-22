@@ -193,7 +193,6 @@ export default function ConfiguracionPage() {
     { id: "tienda", label: "Información de la Tienda", icon: FaStore, color: "blue" },
     { id: "cuenta", label: "Cuenta y Seguridad", icon: FaUser, color: "purple" },
     { id: "inventario", label: "Inventario y Moneda", icon: FaBox, color: "green" },
-    { id: "sistema", label: "Sistema y Base de Datos", icon: FaDatabase, color: "orange" },
   ];
 
   return (
@@ -442,8 +441,14 @@ export default function ConfiguracionPage() {
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-5">
                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
                       <FaLock className="text-purple-500" />
-                      Cambiar PIN de Seguridad
+                      PIN / Código de Autorización
                     </h3>
+                    <div className="mb-4 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl">
+                      <p className="text-xs text-purple-700 dark:text-purple-400 flex items-start gap-2">
+                        <FaInfoCircle className="mt-0.5 flex-shrink-0" />
+                        Este PIN se usa también como <strong>código de autorización</strong> para registrar compras de mercadería. Más adelante se integrará con Google Auth.
+                      </p>
+                    </div>
 
                     {config.pin && (
                       <div className="mb-4">

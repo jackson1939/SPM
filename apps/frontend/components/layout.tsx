@@ -51,6 +51,7 @@ interface ProductoBusqueda {
 
 export default function Layout({ children }: LayoutProps) {
   const [role, setRole] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState("Administrador");
   const [notifications, setNotifications] = useState<Notificacion[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
@@ -194,6 +195,15 @@ export default function Layout({ children }: LayoutProps) {
       setRole(userRole);
       cargarNotificaciones(userRole);
     }
+
+    // Leer nombre de usuario desde configuración
+    try {
+      const raw = localStorage.getItem("spm_config");
+      if (raw) {
+        const cfg = JSON.parse(raw);
+        if (cfg.username) setDisplayName(cfg.username);
+      }
+    } catch {}
 
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme === "dark") {
@@ -413,7 +423,7 @@ export default function Layout({ children }: LayoutProps) {
                   <FaUser className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">Usuario Admin</p>
+                  <p className="text-sm font-semibold text-white truncate">{displayName}</p>
                   <p className="text-xs text-white/60 capitalize">{roleInfo.name}</p>
                 </div>
               </div>
@@ -720,7 +730,7 @@ export default function Layout({ children }: LayoutProps) {
                               <span className="text-2xl">{roleInfo.icon}</span>
                             </div>
                             <div>
-                              <p className="font-semibold text-white">Usuario Admin</p>
+                              <p className="font-semibold text-white">{displayName}</p>
                               <p className="text-xs text-white/80 capitalize">{roleInfo.name}</p>
                             </div>
                           </div>

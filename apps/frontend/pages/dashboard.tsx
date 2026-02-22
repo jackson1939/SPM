@@ -16,6 +16,7 @@ import {
   FaWarehouse,
   FaSync,
 } from "react-icons/fa";
+import { formatPrecio } from "../utils/formatPrecio";
 
 interface DashboardStats {
   ventasHoy: number;
@@ -41,10 +42,12 @@ export default function Dashboard() {
     try {
       setRefreshing(true);
 
-      const hoyStr = new Date().toISOString().split("T")[0];
-      const ayerDate = new Date();
-      ayerDate.setDate(ayerDate.getDate() - 1);
-      const ayerStr = ayerDate.toISOString().split("T")[0];
+      // Usar fecha LOCAL (no UTC) para que las ventas del día coincidan con la zona horaria del usuario
+      const hoyD = new Date();
+      const hoyStr = `${hoyD.getFullYear()}-${String(hoyD.getMonth() + 1).padStart(2, "0")}-${String(hoyD.getDate()).padStart(2, "0")}`;
+      const ayerD = new Date();
+      ayerD.setDate(ayerD.getDate() - 1);
+      const ayerStr = `${ayerD.getFullYear()}-${String(ayerD.getMonth() + 1).padStart(2, "0")}-${String(ayerD.getDate()).padStart(2, "0")}`;
       const mesActual = hoyStr.substring(0, 7); // YYYY-MM
 
       const [ventasRes, productosRes, comprasRes] = await Promise.allSettled([
@@ -59,7 +62,17 @@ export default function Dashboard() {
       if (ventasRes.status === "fulfilled" && ventasRes.value.ok) {
         const ventas: any[] = await ventasRes.value.json();
         ventas.forEach((v) => {
-          const fechaVenta = (v.fecha ?? "").split("T")[0];
+          const raw = v.fecha ?? "";
+          // Convertir a fecha LOCAL para que coincida con hoyStr/ayerStr en zona horaria del usuario
+          const fechaVenta = raw
+            ? (() => {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+                const d = new Date(raw);
+                return isNaN(d.getTime())
+                  ? raw.split("T")[0]
+                  : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+              })()
+            : "";
           const total = Number(v.total) || 0;
           if (fechaVenta === hoyStr) ventasHoy += total;
           if (fechaVenta === ayerStr) ventasAyer += total;
@@ -239,11 +252,11 @@ export default function Dashboard() {
                 </div>
                 <h3 className="text-sm font-medium opacity-90">Ventas Hoy</h3>
                 <p className="text-3xl font-bold mt-1">
-                  ${stats.ventasHoy.toFixed(2)}
+                  ${formatPrecio(stats.ventasHoy)}
                 </p>
                 {stats.ventasAyer > 0 && (
                   <p className="text-xs opacity-70 mt-1">
-                    Ayer: ${stats.ventasAyer.toFixed(2)}
+                    Ayer: ${formatPrecio(stats.ventasAyer)}
                   </p>
                 )}
               </div>
@@ -269,7 +282,7 @@ export default function Dashboard() {
                 </div>
                 <h3 className="text-sm font-medium opacity-90">Compras del Mes</h3>
                 <p className="text-3xl font-bold mt-1">
-                  ${stats.comprasMes.toFixed(2)}
+                  ${formatPrecio(stats.comprasMes)}
                 </p>
                 <p className="text-xs opacity-70 mt-1">mes actual</p>
               </div>
@@ -460,7 +473,7 @@ export default function Dashboard() {
                 </div>
                 <h3 className="text-sm font-medium opacity-90">Ventas de Hoy</h3>
               </div>
-              <p className="text-3xl font-bold">${stats.ventasHoy.toFixed(2)}</p>
+              <p className="text-3xl font-bold">${formatPrecio(stats.ventasHoy)}</p>
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">

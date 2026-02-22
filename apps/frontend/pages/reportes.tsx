@@ -49,7 +49,9 @@ export default function ReportesPage() {
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<Periodo>("dia");
 
   // Rango personalizado
-  const hoyStr = new Date().toISOString().split("T")[0];
+  // Fecha de HOY en hora local (no UTC) para que coincida con la zona horaria del usuario
+  const hoy = new Date();
+  const hoyStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
   const [fechaDesde, setFechaDesde] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -76,15 +78,18 @@ export default function ReportesPage() {
     cargarVentas();
   }, []);
 
+  // Convierte cualquier fecha (ISO UTC o local) a string de fecha LOCAL del navegador
   const getFechaLocal = (fechaStr: string): string => {
     if (!fechaStr) return "";
     if (/^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) return fechaStr;
-    return fechaStr.split("T")[0];
+    const d = new Date(fechaStr);
+    if (isNaN(d.getTime())) return fechaStr.split("T")[0];
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   };
 
   const ayerDate = new Date();
   ayerDate.setDate(ayerDate.getDate() - 1);
-  const ayerStr = ayerDate.toISOString().split("T")[0];
+  const ayerStr = `${ayerDate.getFullYear()}-${String(ayerDate.getMonth() + 1).padStart(2, "0")}-${String(ayerDate.getDate()).padStart(2, "0")}`;
 
   const ventas: VentaDia[] = ventasRaw.map((v) => ({
     fecha: getFechaLocal(v.fecha),

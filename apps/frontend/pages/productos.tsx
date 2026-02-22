@@ -1,8 +1,8 @@
 // apps/frontend/pages/productos.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Head from "next/head";
 import Link from "next/link";
-import { exportToExcel } from "../utils/exportExcel";
+import * as XLSX from "xlsx";
 import {
   FaArrowLeft,
   FaPlus,
@@ -16,12 +16,14 @@ import {
   FaEdit,
   FaTrash,
   FaCheckCircle,
-  FaTimesCircle
+  FaTimesCircle,
+  FaSave,
+  FaTimes,
 } from "react-icons/fa";
 
 interface Producto {
   id: number;
-  codigo_barras: string;
+  codigo_barras: string | null;
   nombre: string;
   precio: number;
   stock: number;
@@ -42,34 +44,38 @@ export default function ProductosPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStock, setFilterStock] = useState<string>("todos");
 
-  // Cargar productos desde la API
-  useEffect(() => {
-    const fetchProductos = async () => {
-      try {
-        setLoadingList(true);
-        setError(null);
-        const res = await fetch("/api/productos");
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || "Error al cargar productos");
-        }
-        const data = await res.json();
-        // Asegurar que precio y stock sean números
-        const productosFormateados = data.map((p: any) => ({
-          ...p,
-          precio: typeof p.precio === 'string' ? parseFloat(p.precio) : (typeof p.precio === 'number' ? p.precio : 0),
-          stock: typeof p.stock === 'string' ? parseInt(p.stock) : (typeof p.stock === 'number' ? p.stock : 0),
-          codigo_barras: p.codigo_barras || `AUTO-${p.id}`
-        }));
-        setProductos(productosFormateados);
-      } catch (err: any) {
-        setError(err.message || "Error al cargar productos");
-        console.error("Error:", err);
-      } finally {
-        setLoadingList(false);
-      }
-    };
+  // Estado para confirmación de eliminación
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
+  // Ref para el input de código de barras (para foco automático del escáner)
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchProductos = async () => {
+    try {
+      setLoadingList(true);
+      setError(null);
+      const res = await fetch("/api/productos");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Error al cargar productos");
+      }
+      const data = await res.json();
+      const productosFormateados = data.map((p: any) => ({
+        ...p,
+        precio: typeof p.precio === "string" ? parseFloat(p.precio) : p.precio ?? 0,
+        stock: typeof p.stock === "string" ? parseInt(p.stock) : p.stock ?? 0,
+        codigo_barras: p.codigo_barras ?? null,
+      }));
+      setProductos(productosFormateados);
+    } catch (err: any) {
+      setError(err.message || "Error al cargar productos");
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
     fetchProductos();
   }, []);
 
@@ -78,24 +84,20 @@ export default function ProductosPage() {
     setError(null);
     setSuccess(null);
 
-    // Validación en el frontend (codigo_barras es opcional)
     if (!nuevoProducto.nombre.trim()) {
       setError("El nombre es requerido");
       return;
     }
-
     if (nuevoProducto.precio <= 0) {
       setError("El precio debe ser mayor a 0");
       return;
     }
-
     if (nuevoProducto.stock < 0) {
       setError("El stock no puede ser negativo");
       return;
     }
 
     setLoading(true);
-
     try {
       const res = await fetch("/api/productos", {
         method: "POST",
@@ -114,37 +116,101 @@ export default function ProductosPage() {
       }
 
       const producto = await res.json();
-      setProductos([...productos, producto]);
+      setProductos((prev) => [...prev, producto]);
       setNuevoProducto({ codigo_barras: "", nombre: "", precio: 0, stock: 0 });
-      setSuccess("✅ Producto guardado correctamente");
-
-      // Limpiar mensaje de éxito después de 3 segundos
+      setSuccess("Producto guardado correctamente");
       setTimeout(() => setSuccess(null), 3000);
+
+      // Volver el foco al input de código de barras para el siguiente producto
+      barcodeInputRef.current?.focus();
     } catch (err: any) {
       setError(err.message || "Error al guardar producto");
-      console.error("Error:", err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteProducto = async (id: number) => {
+    setDeletingId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/productos?id=${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || "Error al eliminar producto");
+      }
+
+      setProductos((prev) => prev.filter((p) => p.id !== id));
+      setSuccess("Producto eliminado correctamente");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message || "Error al eliminar producto");
+    } finally {
+      setDeletingId(null);
+      setConfirmDelete(null);
+    }
+  };
+
+  // Exportar inventario con columnas correctas y legibles
+  const exportarInventario = () => {
+    const datos = productosFiltrados.map((p) => ({
+      ID: p.id,
+      "Código de Barras": p.codigo_barras ?? "Sin código",
+      Producto: p.nombre,
+      "Precio ($)": p.precio.toFixed(2),
+      Stock: p.stock,
+      Estado: p.stock === 0 ? "Agotado" : p.stock <= 5 ? "Stock Bajo" : "Normal",
+      "Valor en Stock ($)": (p.precio * p.stock).toFixed(2),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(datos);
+
+    // Ajustar anchos de columnas
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 18 },
+      { wch: 30 },
+      { wch: 12 },
+      { wch: 8 },
+      { wch: 12 },
+      { wch: 16 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario");
+
+    // Hoja resumen
+    const resumen = [
+      { Métrica: "Total de Productos", Valor: totalProductos },
+      { Métrica: "Productos con Stock Bajo", Valor: stockBajo },
+      { Métrica: "Productos Agotados", Valor: agotados },
+      { Métrica: "Valor Total del Inventario ($)", Valor: valorInventario.toFixed(2) },
+      { Métrica: "Fecha de exportación", Valor: new Date().toLocaleString("es-ES") },
+    ];
+    const wsResumen = XLSX.utils.json_to_sheet(resumen);
+    wsResumen["!cols"] = [{ wch: 35 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(workbook, wsResumen, "Resumen");
+
+    XLSX.writeFile(workbook, `inventario_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   // Filtrar productos
   const productosFiltrados = productos.filter((producto) => {
     const matchesSearch =
       producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      producto.codigo_barras.toLowerCase().includes(searchTerm.toLowerCase());
+      (producto.codigo_barras ?? "").toLowerCase().includes(searchTerm.toLowerCase());
 
     let matchesStock = true;
-    if (filterStock === "bajo") {
-      matchesStock = producto.stock <= 5;
-    } else if (filterStock === "agotado") {
-      matchesStock = producto.stock === 0;
-    }
+    if (filterStock === "bajo") matchesStock = producto.stock <= 5 && producto.stock > 0;
+    else if (filterStock === "agotado") matchesStock = producto.stock === 0;
 
     return matchesSearch && matchesStock;
   });
 
-  // Calcular estadísticas
+  // Estadísticas
   const totalProductos = productos.length;
   const stockBajo = productos.filter((p) => p.stock <= 5 && p.stock > 0).length;
   const agotados = productos.filter((p) => p.stock === 0).length;
@@ -199,9 +265,9 @@ export default function ProductosPage() {
           </Link>
         </div>
 
-        {/* Mensajes de error y éxito */}
+        {/* Mensajes */}
         {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-lg animate-fadeIn">
+          <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-lg">
             <div className="flex items-start gap-3">
               <FaTimesCircle className="text-red-500 dark:text-red-400 text-xl flex-shrink-0 mt-0.5" />
               <div>
@@ -213,7 +279,7 @@ export default function ProductosPage() {
         )}
 
         {success && (
-          <div className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 p-4 rounded-lg animate-fadeIn">
+          <div className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 p-4 rounded-lg">
             <div className="flex items-start gap-3">
               <FaCheckCircle className="text-green-500 dark:text-green-400 text-xl flex-shrink-0 mt-0.5" />
               <p className="text-green-800 dark:text-green-300 font-medium">{success}</p>
@@ -260,67 +326,59 @@ export default function ProductosPage() {
               </div>
               <h3 className="text-sm font-medium opacity-90">Valor Inventario</h3>
             </div>
-            <p className="text-3xl font-bold">${valorInventario.toLocaleString()}</p>
+            <p className="text-3xl font-bold">${valorInventario.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
         </div>
 
-        {/* Panel de Alertas de Stock Bajo */}
+        {/* Alertas de stock */}
         {(stockBajo > 0 || agotados > 0) && (
           <div className="space-y-4">
-            {/* Productos Agotados */}
             {agotados > 0 && (
               <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <FaTimesCircle className="text-red-500 dark:text-red-400 text-xl flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <h3 className="font-bold text-red-800 dark:text-red-300 mb-2">
-                      ⚠️ Productos Agotados ({agotados})
+                      Productos Agotados ({agotados})
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {productos
-                        .filter((p) => p.stock === 0)
-                        .map((p) => (
-                          <div
-                            key={p.id}
-                            className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800"
-                          >
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white text-sm">{p.nombre}</p>
+                      {productos.filter((p) => p.stock === 0).map((p) => (
+                        <div key={p.id} className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-red-200 dark:border-red-800">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white text-sm">{p.nombre}</p>
+                            {p.codigo_barras && (
                               <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{p.codigo_barras}</p>
-                            </div>
-                            <span className="text-red-600 dark:text-red-400 font-bold text-sm">0</span>
+                            )}
                           </div>
-                        ))}
+                          <span className="text-red-600 dark:text-red-400 font-bold text-sm">0</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Productos con Stock Bajo */}
             {stockBajo > 0 && (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <FaExclamationTriangle className="text-yellow-500 dark:text-yellow-400 text-xl flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <h3 className="font-bold text-yellow-800 dark:text-yellow-300 mb-2">
-                      ⚠️ Stock Bajo ({stockBajo}) - Menos de 5 unidades
+                      Stock Bajo ({stockBajo}) — Menos de 6 unidades
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {productos
-                        .filter((p) => p.stock > 0 && p.stock <= 5)
-                        .map((p) => (
-                          <div
-                            key={p.id}
-                            className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-yellow-200 dark:border-yellow-800"
-                          >
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white text-sm">{p.nombre}</p>
+                      {productos.filter((p) => p.stock > 0 && p.stock <= 5).map((p) => (
+                        <div key={p.id} className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white text-sm">{p.nombre}</p>
+                            {p.codigo_barras && (
                               <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{p.codigo_barras}</p>
-                            </div>
-                            <span className="text-yellow-600 dark:text-yellow-400 font-bold text-sm">{p.stock}</span>
+                            )}
                           </div>
-                        ))}
+                          <span className="text-yellow-600 dark:text-yellow-400 font-bold text-sm">{p.stock}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -346,29 +404,46 @@ export default function ProductosPage() {
               </div>
 
               <div className="space-y-4">
+                {/* Código de barras — compatible con escáner físico */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <div className="flex items-center gap-2">
                       <FaBarcode />
-                      Código de Barras <span className="text-gray-500 dark:text-gray-400 text-xs">(opcional)</span>
+                      Código de Barras
+                      <span className="text-gray-400 text-xs">(opcional)</span>
                     </div>
                   </label>
                   <input
+                    ref={barcodeInputRef}
                     type="text"
-                    placeholder="Ej: 7501234567890 (opcional)"
+                    placeholder="Escanea o escribe el código..."
                     value={nuevoProducto.codigo_barras}
                     onChange={(e) =>
                       setNuevoProducto({ ...nuevoProducto, codigo_barras: e.target.value })
                     }
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                    onKeyDown={(e) => {
+                      // Los escáneres de código de barras envían Enter al terminar
+                      // Mover foco al nombre automáticamente
+                      if (e.key === "Enter" && nuevoProducto.codigo_barras.trim()) {
+                        e.preventDefault();
+                        const nombreInput = document.getElementById("producto-nombre");
+                        nombreInput?.focus();
+                      }
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 font-mono"
+                    autoComplete="off"
                   />
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Usa el lector de barras o escribe el código manualmente
+                  </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Nombre del Producto
+                    Nombre del Producto <span className="text-red-500">*</span>
                   </label>
                   <input
+                    id="producto-nombre"
                     type="text"
                     placeholder="Ej: Coca Cola 500ml"
                     value={nuevoProducto.nombre}
@@ -384,26 +459,23 @@ export default function ProductosPage() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <div className="flex items-center gap-2">
                       <FaDollarSign />
-                      Precio
+                      Precio <span className="text-red-500">*</span>
                     </div>
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">
-                      $
-                    </span>
+                    <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">$</span>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       placeholder="0.00"
                       value={nuevoProducto.precio || ""}
-                      onChange={(e) => {
-                        const value = e.target.value;
+                      onChange={(e) =>
                         setNuevoProducto({
                           ...nuevoProducto,
-                          precio: value === "" ? 0 : parseFloat(value) || 0,
-                        });
-                      }}
+                          precio: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0,
+                        })
+                      }
                       className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
                       required
                     />
@@ -422,15 +494,13 @@ export default function ProductosPage() {
                     min="0"
                     placeholder="0"
                     value={nuevoProducto.stock || ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
+                    onChange={(e) =>
                       setNuevoProducto({
                         ...nuevoProducto,
-                        stock: value === "" ? 0 : parseInt(value) || 0,
-                      });
-                    }}
+                        stock: e.target.value === "" ? 0 : parseInt(e.target.value) || 0,
+                      })
+                    }
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
-                    required
                   />
                 </div>
 
@@ -441,12 +511,12 @@ export default function ProductosPage() {
                 >
                   {loading ? (
                     <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       Guardando...
                     </>
                   ) : (
                     <>
-                      <FaPlus />
+                      <FaSave />
                       Guardar Producto
                     </>
                   )}
@@ -466,7 +536,7 @@ export default function ProductosPage() {
                   </h2>
                   {productos.length > 0 && (
                     <button
-                      onClick={() => exportToExcel(productos, "productos_backup")}
+                      onClick={exportarInventario}
                       className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm font-medium"
                     >
                       <FaFileExcel />
@@ -475,7 +545,6 @@ export default function ProductosPage() {
                   )}
                 </div>
 
-                {/* Filtros */}
                 <div className="flex flex-col md:flex-row gap-3">
                   <div className="flex-1 relative">
                     <FaSearch className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500" />
@@ -506,7 +575,7 @@ export default function ProductosPage() {
               <div className="overflow-x-auto">
                 {loadingList ? (
                   <div className="p-12 text-center">
-                    <div className="inline-block w-12 h-12 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <div className="inline-block w-12 h-12 border-4 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full animate-spin mb-4" />
                     <p className="text-gray-500 dark:text-gray-400">Cargando productos...</p>
                   </div>
                 ) : productosFiltrados.length === 0 ? (
@@ -519,28 +588,33 @@ export default function ProductosPage() {
                         ? "No hay productos registrados"
                         : "No se encontraron productos con los filtros aplicados"}
                     </p>
-                    <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
-                      {productos.length === 0 && "Comienza agregando tu primer producto"}
-                    </p>
+                    {productos.length === 0 && (
+                      <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
+                        Comienza agregando tu primer producto
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-gray-700/50">
                       <tr>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                           Código
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                           Producto
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                           Precio
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                           Stock
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                           Estado
+                        </th>
+                        <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Acciones
                         </th>
                       </tr>
                     </thead>
@@ -550,25 +624,31 @@ export default function ProductosPage() {
                           key={p.id}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors duration-150"
                         >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <FaBarcode className="text-gray-400 dark:text-gray-500" />
-                              <span className="text-gray-700 dark:text-gray-300 font-mono text-sm">
-                                {p.codigo_barras}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            {p.codigo_barras ? (
+                              <div className="flex items-center gap-2">
+                                <FaBarcode className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                <span className="text-gray-700 dark:text-gray-300 font-mono text-sm">
+                                  {p.codigo_barras}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 dark:text-gray-500 text-xs italic">
+                                Sin código
                               </span>
-                            </div>
+                            )}
                           </td>
-                          <td className="px-6 py-4">
+                          <td className="px-4 py-4">
                             <span className="font-medium text-gray-900 dark:text-white">
                               {p.nombre}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <span className="font-semibold text-gray-900 dark:text-white">
-                              ${(typeof p.precio === 'number' ? p.precio : parseFloat(p.precio || '0')).toFixed(2)}
+                              ${p.precio.toFixed(2)}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-4 whitespace-nowrap">
                             <span
                               className={`font-bold ${
                                 p.stock === 0
@@ -581,8 +661,42 @@ export default function ProductosPage() {
                               {p.stock}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 py-4 whitespace-nowrap">
                             {getStockBadge(p.stock)}
+                          </td>
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
+                            {confirmDelete === p.id ? (
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-xs text-gray-600 dark:text-gray-400">¿Eliminar?</span>
+                                <button
+                                  onClick={() => handleDeleteProducto(p.id)}
+                                  disabled={deletingId === p.id}
+                                  className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium transition-colors disabled:opacity-50"
+                                >
+                                  {deletingId === p.id ? (
+                                    <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <FaCheckCircle />
+                                  )}
+                                  Sí
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDelete(null)}
+                                  className="flex items-center gap-1 px-2 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded text-xs font-medium transition-colors"
+                                >
+                                  <FaTimes />
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDelete(p.id)}
+                                className="flex items-center gap-1 px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 rounded-lg text-sm font-medium transition-colors mx-auto"
+                              >
+                                <FaTrash className="text-xs" />
+                                Eliminar
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -599,7 +713,7 @@ export default function ProductosPage() {
                       Mostrando {productosFiltrados.length} de {productos.length} productos
                     </span>
                     <span className="font-semibold text-gray-900 dark:text-white">
-                      Total: {productos.length}
+                      Valor visible: ${productosFiltrados.reduce((acc, p) => acc + p.precio * p.stock, 0).toFixed(2)}
                     </span>
                   </div>
                 </div>

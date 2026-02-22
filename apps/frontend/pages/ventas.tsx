@@ -21,7 +21,7 @@ import {
 
 interface Producto {
   id: number;
-  codigo_barras: string;
+  codigo_barras: string | null;
   nombre: string;
   precio: number;
   stock: number;
@@ -61,7 +61,8 @@ export default function VentasPage() {
         const data = await res.json();
         const productosFormateados = data.map((p: any) => ({
           id: p.id,
-          codigo_barras: p.codigo_barras || `AUTO-${p.id}`,
+          // Usar null si no tiene código de barras — NO generar AUTO-
+          codigo_barras: p.codigo_barras ?? null,
           nombre: p.nombre,
           precio: parseFloat(p.precio) || 0,
           stock: parseInt(p.stock) || 0,
@@ -81,10 +82,10 @@ export default function VentasPage() {
   // Buscar sugerencias mientras escribe
   const handleBuscarProducto = (valor: string) => {
     setCodigo(valor);
-    
+
     if (valor.length >= 1) {
-      const coincidencias = productos.filter((p) => 
-        p.codigo_barras?.toLowerCase().includes(valor.toLowerCase()) ||
+      const coincidencias = productos.filter((p) =>
+        (p.codigo_barras ?? "").toLowerCase().includes(valor.toLowerCase()) ||
         p.nombre.toLowerCase().includes(valor.toLowerCase())
       ).slice(0, 5); // Limitar a 5 sugerencias
       
@@ -140,20 +141,23 @@ export default function VentasPage() {
 
   const handleAgregarProducto = () => {
     // Buscar por código de barras exacto primero
-    let producto = productos.find((p) => p.codigo_barras === codigo);
-    
+    let producto = productos.find(
+      (p) => p.codigo_barras && p.codigo_barras === codigo
+    );
+
     // Si no encuentra, buscar por nombre exacto
     if (!producto) {
-      producto = productos.find((p) => 
-        p.nombre.toLowerCase() === codigo.toLowerCase()
+      producto = productos.find(
+        (p) => p.nombre.toLowerCase() === codigo.toLowerCase()
       );
     }
-    
+
     // Si aún no encuentra, buscar parcialmente por código o nombre
     if (!producto) {
-      producto = productos.find((p) => 
-        p.codigo_barras?.toLowerCase().includes(codigo.toLowerCase()) ||
-        p.nombre.toLowerCase().includes(codigo.toLowerCase())
+      producto = productos.find(
+        (p) =>
+          (p.codigo_barras ?? "").toLowerCase().includes(codigo.toLowerCase()) ||
+          p.nombre.toLowerCase().includes(codigo.toLowerCase())
       );
     }
     
@@ -196,7 +200,7 @@ export default function VentasPage() {
     const item = carrito.find((i) => i.id === id);
     if (item) {
       // Devolver stock solo si no es producto manual
-      if (!item.codigo_barras.startsWith("MANUAL-")) {
+      if (!(item.codigo_barras ?? "").startsWith("MANUAL-")) {
         setProductos(
           productos.map((p) =>
             p.id === id ? { ...p, stock: p.stock + item.cantidad } : p
@@ -212,7 +216,7 @@ export default function VentasPage() {
     if (!item) return;
 
     // Para productos manuales, no verificar stock
-    const esManual = item.codigo_barras.startsWith("MANUAL-");
+    const esManual = (item.codigo_barras ?? "").startsWith("MANUAL-");
     const producto = productos.find((p) => p.id === id);
 
     const nuevaCantidad = item.cantidad + delta;
@@ -318,7 +322,7 @@ export default function VentasPage() {
     // Devolver todo el stock (excepto productos manuales)
     const stockRestaurado = [...productos];
     carrito.forEach((item) => {
-      if (!item.codigo_barras.startsWith("MANUAL-")) {
+      if (!(item.codigo_barras ?? "").startsWith("MANUAL-")) {
         const productoIndex = stockRestaurado.findIndex(
           (p) => p.id === item.id
         );
@@ -442,7 +446,7 @@ export default function VentasPage() {
                             <div className="flex justify-between items-center">
                               <div>
                                 <p className="font-medium text-gray-900 dark:text-white">{producto.nombre}</p>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{producto.codigo_barras}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{producto.codigo_barras ?? "Sin código"}</p>
                               </div>
                               <div className="text-right">
                                 <p className="font-bold text-blue-600 dark:text-blue-400">${producto.precio.toFixed(2)}</p>
@@ -679,7 +683,7 @@ export default function VentasPage() {
                             {item.nombre}
                           </h3>
                           <p className="text-gray-500 dark:text-gray-400 text-sm font-mono">
-                            {item.codigo_barras}
+                            {item.codigo_barras ?? "Sin código"}
                           </p>
                           <p className="text-blue-600 dark:text-blue-400 font-bold mt-1">
                             ${item.precio.toFixed(2)} c/u
@@ -702,7 +706,7 @@ export default function VentasPage() {
                               onClick={() => handleCambiarCantidad(item.id, 1)}
                               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                               disabled={
-                                !item.codigo_barras.startsWith("MANUAL-") &&
+                                !(item.codigo_barras ?? "").startsWith("MANUAL-") &&
                                 productos.find((p) => p.id === item.id)?.stock === 0
                               }
                             >

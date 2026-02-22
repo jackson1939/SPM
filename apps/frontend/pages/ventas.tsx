@@ -265,7 +265,7 @@ export default function VentasPage() {
     try {
       // Preparar items para el API
       const items = carrito.map((item) => ({
-        producto_id: item.codigo_barras.startsWith("MANUAL-") ? null : item.id,
+        producto_id: (item.codigo_barras ?? "").startsWith("MANUAL-") ? null : item.id,
         nombre: item.nombre,
         cantidad: item.cantidad,
         precio_unitario: item.precio,

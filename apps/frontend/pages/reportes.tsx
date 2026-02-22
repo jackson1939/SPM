@@ -11,12 +11,15 @@ import {
   FaDollarSign,
   FaCalendarDay,
   FaCalendarWeek,
+  FaCalendarAlt,
   FaShoppingCart,
   FaArrowUp,
   FaArrowDown,
   FaFileExcel,
   FaSync,
 } from "react-icons/fa";
+
+type Periodo = "dia" | "semana" | "personalizado";
 
 interface VentaRaw {
   id: number;
@@ -26,6 +29,7 @@ interface VentaRaw {
   precio_unitario: number;
   total: number;
   metodo_pago?: string;
+  notas?: string;
   fecha: string;
 }
 
@@ -41,7 +45,16 @@ export default function ReportesPage() {
   const [ventasRaw, setVentasRaw] = useState<VentaRaw[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<"dia" | "semana">("dia");
+  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<Periodo>("dia");
+
+  // Rango personalizado
+  const hoyStr = new Date().toISOString().split("T")[0];
+  const [fechaDesde, setFechaDesde] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split("T")[0];
+  });
+  const [fechaHasta, setFechaHasta] = useState<string>(hoyStr);
 
   const cargarVentas = async () => {
     try {
@@ -62,21 +75,16 @@ export default function ReportesPage() {
     cargarVentas();
   }, []);
 
-  // Normalizar fecha a YYYY-MM-DD en zona local
   const getFechaLocal = (fechaStr: string): string => {
     if (!fechaStr) return "";
-    // Si ya tiene formato YYYY-MM-DD sin tiempo, usar directo
     if (/^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) return fechaStr;
-    // Si tiene zona horaria o T, extraer parte de fecha
     return fechaStr.split("T")[0];
   };
 
-  const hoyStr = new Date().toISOString().split("T")[0];
   const ayerDate = new Date();
   ayerDate.setDate(ayerDate.getDate() - 1);
   const ayerStr = ayerDate.toISOString().split("T")[0];
 
-  // Mapear ventas al formato de trabajo
   const ventas: VentaDia[] = ventasRaw.map((v) => ({
     fecha: getFechaLocal(v.fecha),
     producto: v.producto_nombre || `Producto #${v.producto_id ?? "manual"}`,
@@ -96,21 +104,51 @@ export default function ReportesPage() {
     return diff >= 0 && diff < 7;
   });
 
+  const ventasPersonalizado = ventas.filter((v) => {
+    if (!fechaDesde || !fechaHasta) return false;
+    return v.fecha >= fechaDesde && v.fecha <= fechaHasta;
+  });
+
+  // Ventas del período activo
+  const ventasPeriodo =
+    periodoSeleccionado === "dia"
+      ? ventasHoy
+      : periodoSeleccionado === "semana"
+      ? ventasSemana
+      : ventasPersonalizado;
+
   // Totales
   const totalHoy = ventasHoy.reduce((acc, v) => acc + v.total, 0);
   const totalAyer = ventasAyer.reduce((acc, v) => acc + v.total, 0);
   const totalSemana = ventasSemana.reduce((acc, v) => acc + v.total, 0);
+  const totalPersonalizado = ventasPersonalizado.reduce((acc, v) => acc + v.total, 0);
   const totalHistorico = ventas.reduce((acc, v) => acc + v.total, 0);
 
   const productosVendidosHoy = ventasHoy.reduce((acc, v) => acc + v.cantidad, 0);
   const productosVendidosSemana = ventasSemana.reduce((acc, v) => acc + v.cantidad, 0);
+  const productosVendidosPersonalizado = ventasPersonalizado.reduce((acc, v) => acc + v.cantidad, 0);
 
   const cambioVentas = totalAyer > 0 ? ((totalHoy - totalAyer) / totalAyer) * 100 : 0;
   const promedioDiario = ventasSemana.length > 0 ? totalSemana / 7 : 0;
 
-  // Ranking de productos más vendidos (de toda la historia)
+  // Total del período activo para mostrar en las cards
+  const totalPeriodoActivo =
+    periodoSeleccionado === "dia"
+      ? totalHoy
+      : periodoSeleccionado === "semana"
+      ? totalSemana
+      : totalPersonalizado;
+
+  const unidadesPeriodoActivo =
+    periodoSeleccionado === "dia"
+      ? productosVendidosHoy
+      : periodoSeleccionado === "semana"
+      ? productosVendidosSemana
+      : productosVendidosPersonalizado;
+
+  // Ranking de productos (del período activo)
   const productosVendidosMap: Record<string, { cantidad: number; total: number }> = {};
-  ventas.forEach((v) => {
+  ventasPeriodo.forEach((v) => {
     if (!productosVendidosMap[v.producto]) {
       productosVendidosMap[v.producto] = { cantidad: 0, total: 0 };
     }
@@ -121,27 +159,27 @@ export default function ReportesPage() {
     .sort((a, b) => b[1].cantidad - a[1].cantidad)
     .slice(0, 5);
 
-  // Ventas por día (últimos 7 días)
+  // Ventas por día (para gráfico)
   const ventasPorDia: Record<string, number> = {};
-  ventasSemana.forEach((v) => {
+  ventasPeriodo.forEach((v) => {
     ventasPorDia[v.fecha] = (ventasPorDia[v.fecha] || 0) + v.total;
   });
-  const diasOrdenados = Object.keys(ventasPorDia).sort().reverse();
+  const diasOrdenados = Object.keys(ventasPorDia).sort().reverse().slice(0, 7);
 
-  // Exportar reporte a Excel con datos reales
+  // Exportar reporte
   const exportarReporte = () => {
-    const ventasExport =
-      periodoSeleccionado === "dia"
-        ? ventasRaw.filter((v) => getFechaLocal(v.fecha) === hoyStr)
-        : ventasRaw.filter((v) => {
-            const diff =
-              (new Date(hoyStr).getTime() -
-                new Date(getFechaLocal(v.fecha) + "T00:00:00").getTime()) /
-              (1000 * 60 * 60 * 24);
-            return diff >= 0 && diff < 7;
-          });
+    const ventasExport = periodoSeleccionado === "dia"
+      ? ventasRaw.filter((v) => getFechaLocal(v.fecha) === hoyStr)
+      : periodoSeleccionado === "semana"
+      ? ventasRaw.filter((v) => {
+          const diff = (new Date(hoyStr).getTime() - new Date(getFechaLocal(v.fecha) + "T00:00:00").getTime()) / (1000 * 60 * 60 * 24);
+          return diff >= 0 && diff < 7;
+        })
+      : ventasRaw.filter((v) => {
+          const f = getFechaLocal(v.fecha);
+          return f >= fechaDesde && f <= fechaHasta;
+        });
 
-    // Hoja de detalle de ventas
     const datosVentas = ventasExport.map((v) => ({
       ID: v.id,
       Fecha: getFechaLocal(v.fecha),
@@ -150,19 +188,26 @@ export default function ReportesPage() {
       "Precio Unit. ($)": Number(v.precio_unitario).toFixed(2),
       "Total ($)": Number(v.total).toFixed(2),
       "Método de Pago": v.metodo_pago || "efectivo",
+      Notas: v.notas || "",
     }));
 
     const wsVentas = XLSX.utils.json_to_sheet(datosVentas);
     wsVentas["!cols"] = [
       { wch: 6 }, { wch: 12 }, { wch: 30 }, { wch: 10 },
-      { wch: 14 }, { wch: 12 }, { wch: 16 },
+      { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 30 },
     ];
 
-    // Hoja resumen
     const totalPeriodo = ventasExport.reduce((acc, v) => acc + Number(v.total), 0);
     const cantidadPeriodo = ventasExport.reduce((acc, v) => acc + Number(v.cantidad), 0);
+    const periodoLabel =
+      periodoSeleccionado === "dia"
+        ? "Hoy"
+        : periodoSeleccionado === "semana"
+        ? "Últimos 7 días"
+        : `${fechaDesde} a ${fechaHasta}`;
+
     const resumen = [
-      { Métrica: "Período", Valor: periodoSeleccionado === "dia" ? "Hoy" : "Últimos 7 días" },
+      { Métrica: "Período", Valor: periodoLabel },
       { Métrica: "Total Ventas ($)", Valor: totalPeriodo.toFixed(2) },
       { Métrica: "Unidades Vendidas", Valor: cantidadPeriodo },
       { Métrica: "Número de Transacciones", Valor: ventasExport.length },
@@ -175,7 +220,6 @@ export default function ReportesPage() {
     const wsResumen = XLSX.utils.json_to_sheet(resumen);
     wsResumen["!cols"] = [{ wch: 30 }, { wch: 20 }];
 
-    // Hoja top productos
     const datosRanking = ranking.map(([producto, datos], i) => ({
       Posición: i + 1,
       Producto: producto,
@@ -190,9 +234,21 @@ export default function ReportesPage() {
     XLSX.utils.book_append_sheet(workbook, wsResumen, "Resumen");
     XLSX.utils.book_append_sheet(workbook, wsRanking, "Top Productos");
 
-    const label = periodoSeleccionado === "dia" ? "diario" : "semanal";
+    const label =
+      periodoSeleccionado === "dia"
+        ? "diario"
+        : periodoSeleccionado === "semana"
+        ? "semanal"
+        : `personalizado_${fechaDesde}_${fechaHasta}`;
     XLSX.writeFile(workbook, `reporte_${label}_${hoyStr}.xlsx`);
   };
+
+  const labelPeriodo =
+    periodoSeleccionado === "dia"
+      ? "Hoy"
+      : periodoSeleccionado === "semana"
+      ? "Esta semana"
+      : `${fechaDesde} — ${fechaHasta}`;
 
   return (
     <>
@@ -243,7 +299,6 @@ export default function ReportesPage() {
           </div>
         )}
 
-        {/* Cargando */}
         {loading && (
           <div className="flex items-center justify-center py-12">
             <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -254,30 +309,77 @@ export default function ReportesPage() {
           <>
             {/* Selector de período */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 border border-gray-200 dark:border-gray-700">
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => setPeriodoSeleccionado("dia")}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+                  className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
                     periodoSeleccionado === "dia"
                       ? "bg-blue-600 dark:bg-blue-500 text-white shadow-md"
                       : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                   }`}
                 >
                   <FaCalendarDay />
-                  Reporte Diario
+                  Hoy
                 </button>
                 <button
                   onClick={() => setPeriodoSeleccionado("semana")}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+                  className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
                     periodoSeleccionado === "semana"
                       ? "bg-blue-600 dark:bg-blue-500 text-white shadow-md"
                       : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
                   }`}
                 >
                   <FaCalendarWeek />
-                  Reporte Semanal
+                  Última semana
+                </button>
+                <button
+                  onClick={() => setPeriodoSeleccionado("personalizado")}
+                  className={`flex-1 min-w-[140px] flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
+                    periodoSeleccionado === "personalizado"
+                      ? "bg-purple-600 dark:bg-purple-500 text-white shadow-md"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                  }`}
+                >
+                  <FaCalendarAlt />
+                  Personalizado
                 </button>
               </div>
+
+              {/* Date pickers para rango personalizado */}
+              {periodoSeleccionado === "personalizado" && (
+                <div className="mt-4 flex flex-col sm:flex-row gap-3 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-purple-800 dark:text-purple-300 mb-1">
+                      Desde
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaDesde}
+                      max={fechaHasta}
+                      onChange={(e) => setFechaDesde(e.target.value)}
+                      className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-purple-800 dark:text-purple-300 mb-1">
+                      Hasta
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaHasta}
+                      min={fechaDesde}
+                      max={hoyStr}
+                      onChange={(e) => setFechaHasta(e.target.value)}
+                      className="w-full px-3 py-2 border border-purple-300 dark:border-purple-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white text-sm"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <div className="px-3 py-2 bg-purple-100 dark:bg-purple-900/40 rounded-lg text-sm text-purple-700 dark:text-purple-400 font-medium whitespace-nowrap">
+                      {ventasPersonalizado.length} ventas
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Sin datos */}
@@ -304,14 +406,8 @@ export default function ReportesPage() {
                         <FaDollarSign className="text-2xl" />
                       </div>
                       <div>
-                        <p className="text-sm opacity-90">
-                          {periodoSeleccionado === "dia" ? "Ventas Hoy" : "Ventas Semana"}
-                        </p>
-                        <p className="text-3xl font-bold">
-                          ${periodoSeleccionado === "dia"
-                            ? totalHoy.toFixed(2)
-                            : totalSemana.toFixed(2)}
-                        </p>
+                        <p className="text-sm opacity-90">{labelPeriodo}</p>
+                        <p className="text-3xl font-bold">${totalPeriodoActivo.toFixed(2)}</p>
                       </div>
                     </div>
                     {periodoSeleccionado === "dia" && (
@@ -343,17 +439,11 @@ export default function ReportesPage() {
                       </div>
                       <div>
                         <p className="text-sm opacity-90">Unidades Vendidas</p>
-                        <p className="text-3xl font-bold">
-                          {periodoSeleccionado === "dia"
-                            ? productosVendidosHoy
-                            : productosVendidosSemana}
-                        </p>
+                        <p className="text-3xl font-bold">{unidadesPeriodoActivo}</p>
                       </div>
                     </div>
                     <p className="text-sm opacity-75">
-                      {periodoSeleccionado === "dia"
-                        ? `${ventasHoy.length} transacciones`
-                        : `${ventasSemana.length} transacciones`}
+                      {ventasPeriodo.length} transacciones
                     </p>
                   </div>
 
@@ -366,17 +456,14 @@ export default function ReportesPage() {
                       <div>
                         <p className="text-sm opacity-90">Promedio</p>
                         <p className="text-3xl font-bold">
-                          ${periodoSeleccionado === "dia"
-                            ? ventasHoy.length > 0
-                              ? (totalHoy / ventasHoy.length).toFixed(2)
-                              : "0.00"
-                            : promedioDiario.toFixed(2)}
+                          $
+                          {ventasPeriodo.length > 0
+                            ? (totalPeriodoActivo / ventasPeriodo.length).toFixed(2)
+                            : "0.00"}
                         </p>
                       </div>
                     </div>
-                    <p className="text-sm opacity-75">
-                      {periodoSeleccionado === "dia" ? "por transacción" : "por día"}
-                    </p>
+                    <p className="text-sm opacity-75">por transacción</p>
                   </div>
 
                   {/* Total histórico */}
@@ -407,7 +494,7 @@ export default function ReportesPage() {
                             Top 5 Productos
                           </h2>
                           <p className="text-gray-600 dark:text-gray-400 text-sm">
-                            Más vendidos por cantidad (histórico)
+                            Más vendidos — {labelPeriodo}
                           </p>
                         </div>
                       </div>
@@ -415,7 +502,7 @@ export default function ReportesPage() {
                     <div className="p-6">
                       {ranking.length === 0 ? (
                         <p className="text-center text-gray-400 dark:text-gray-500 py-8">
-                          Sin datos de ventas
+                          Sin datos de ventas en este período
                         </p>
                       ) : (
                         <div className="space-y-4">
@@ -426,45 +513,33 @@ export default function ReportesPage() {
                               <div key={producto} className="space-y-2">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
-                                    <div
-                                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                                        index === 0
-                                          ? "bg-yellow-400 text-yellow-900"
-                                          : index === 1
-                                          ? "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
-                                          : index === 2
-                                          ? "bg-orange-400 text-orange-900"
-                                          : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                                      }`}
-                                    >
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                                      index === 0 ? "bg-yellow-400 text-yellow-900"
+                                      : index === 1 ? "bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200"
+                                      : index === 2 ? "bg-orange-400 text-orange-900"
+                                      : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                                    }`}>
                                       {index + 1}
                                     </div>
                                     <div>
-                                      <p className="font-semibold text-gray-900 dark:text-white">
-                                        {producto}
-                                      </p>
+                                      <p className="font-semibold text-gray-900 dark:text-white">{producto}</p>
                                       <p className="text-sm text-gray-500 dark:text-gray-400">
                                         ${datos.total.toFixed(2)} en ventas
                                       </p>
                                     </div>
                                   </div>
                                   <div className="text-right">
-                                    <p className="text-lg font-bold text-gray-900 dark:text-white">
-                                      {datos.cantidad}
-                                    </p>
+                                    <p className="text-lg font-bold text-gray-900 dark:text-white">{datos.cantidad}</p>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">unidades</p>
                                   </div>
                                 </div>
                                 <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                                   <div
                                     className={`h-full transition-all duration-500 ${
-                                      index === 0
-                                        ? "bg-gradient-to-r from-yellow-400 to-yellow-500"
-                                        : index === 1
-                                        ? "bg-gradient-to-r from-gray-400 to-gray-500"
-                                        : index === 2
-                                        ? "bg-gradient-to-r from-orange-400 to-orange-500"
-                                        : "bg-gradient-to-r from-blue-400 to-blue-500"
+                                      index === 0 ? "bg-gradient-to-r from-yellow-400 to-yellow-500"
+                                      : index === 1 ? "bg-gradient-to-r from-gray-400 to-gray-500"
+                                      : index === 2 ? "bg-gradient-to-r from-orange-400 to-orange-500"
+                                      : "bg-gradient-to-r from-blue-400 to-blue-500"
                                     }`}
                                     style={{ width: `${porcentaje}%` }}
                                   />
@@ -489,7 +564,9 @@ export default function ReportesPage() {
                             Ventas por Día
                           </h2>
                           <p className="text-gray-600 dark:text-gray-400 text-sm">
-                            Últimos 7 días con actividad
+                            {periodoSeleccionado === "personalizado"
+                              ? "Período seleccionado"
+                              : "Últimos 7 días con actividad"}
                           </p>
                         </div>
                       </div>
@@ -497,15 +574,15 @@ export default function ReportesPage() {
                     <div className="p-6">
                       {diasOrdenados.length === 0 ? (
                         <p className="text-center text-gray-400 dark:text-gray-500 py-8">
-                          Sin ventas en los últimos 7 días
+                          Sin ventas en este período
                         </p>
                       ) : (
                         <div className="space-y-4">
                           {diasOrdenados.map((fecha) => {
-                            const total = ventasPorDia[fecha];
+                            const totalDia = ventasPorDia[fecha];
                             const maxTotal = Math.max(...Object.values(ventasPorDia));
-                            const porcentaje = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
-                            const ventasDia = ventas.filter((v) => v.fecha === fecha);
+                            const porcentaje = maxTotal > 0 ? (totalDia / maxTotal) * 100 : 0;
+                            const ventasDia = ventasPeriodo.filter((v) => v.fecha === fecha);
                             return (
                               <div key={fecha} className="space-y-2">
                                 <div className="flex items-center justify-between">
@@ -523,7 +600,7 @@ export default function ReportesPage() {
                                     </p>
                                   </div>
                                   <p className="text-lg font-bold text-gray-900 dark:text-white">
-                                    ${total.toFixed(2)}
+                                    ${totalDia.toFixed(2)}
                                   </p>
                                 </div>
                                 <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -548,49 +625,30 @@ export default function ReportesPage() {
                       Historial de Ventas
                     </h2>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {periodoSeleccionado === "dia"
-                        ? `${ventasHoy.length} registros hoy`
-                        : `${ventasSemana.length} registros esta semana`}
+                      {ventasPeriodo.length} registros — {labelPeriodo}
                     </span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-gray-50 dark:bg-gray-700/50">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            Fecha
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            Producto
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            Cant.
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            Precio Unit.
-                          </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            Total
-                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Fecha</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Producto</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Cant.</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Precio Unit.</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {(periodoSeleccionado === "dia" ? ventasHoy : ventasSemana)
+                        {[...ventasPeriodo]
                           .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
                           .map((v, i) => (
-                            <tr
-                              key={i}
-                              className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors duration-150"
-                            >
+                            <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors duration-150">
                               <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300">
                                 {new Date(v.fecha + "T00:00:00").toLocaleDateString("es-ES")}
                               </td>
-                              <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                                {v.producto}
-                              </td>
-                              <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                                {v.cantidad}
-                              </td>
+                              <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{v.producto}</td>
+                              <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{v.cantidad}</td>
                               <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
                                 ${v.precio_unitario.toFixed(2)}
                               </td>
@@ -601,7 +659,7 @@ export default function ReportesPage() {
                               </td>
                             </tr>
                           ))}
-                        {(periodoSeleccionado === "dia" ? ventasHoy : ventasSemana).length === 0 && (
+                        {ventasPeriodo.length === 0 && (
                           <tr>
                             <td colSpan={5} className="px-6 py-12 text-center text-gray-400 dark:text-gray-500">
                               No hay ventas en este período

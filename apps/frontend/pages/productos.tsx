@@ -19,6 +19,8 @@ import {
   FaTimesCircle,
   FaSave,
   FaTimes,
+  FaHistory,
+  FaTag,
 } from "react-icons/fa";
 
 interface Producto {
@@ -27,6 +29,15 @@ interface Producto {
   nombre: string;
   precio: number;
   stock: number;
+  categoria: string | null;
+}
+
+interface HistorialPrecio {
+  id: number;
+  producto_id: number;
+  precio_anterior: number;
+  precio_nuevo: number;
+  fecha: string;
 }
 
 export default function ProductosPage() {
@@ -36,6 +47,7 @@ export default function ProductosPage() {
     nombre: "",
     precio: 0,
     stock: 0,
+    categoria: "",
   });
   const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
@@ -43,13 +55,28 @@ export default function ProductosPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStock, setFilterStock] = useState<string>("todos");
+  const [filterCategoria, setFilterCategoria] = useState<string>("todas");
 
-  // Estado para confirmación de eliminación
+  // Confirmación de eliminación
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  // Ref para el input de código de barras (para foco automático del escáner)
+  // Edición inline
+  const [editingCell, setEditingCell] = useState<{ id: number; field: "precio" | "stock" } | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Modal historial de precios
+  const [historialModal, setHistorialModal] = useState<{
+    open: boolean;
+    productoId: number | null;
+    productoNombre: string;
+  }>({ open: false, productoId: null, productoNombre: "" });
+  const [historialData, setHistorialData] = useState<HistorialPrecio[]>([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   const fetchProductos = async () => {
     try {
@@ -66,6 +93,7 @@ export default function ProductosPage() {
         precio: typeof p.precio === "string" ? parseFloat(p.precio) : p.precio ?? 0,
         stock: typeof p.stock === "string" ? parseInt(p.stock) : p.stock ?? 0,
         codigo_barras: p.codigo_barras ?? null,
+        categoria: p.categoria ?? null,
       }));
       setProductos(productosFormateados);
     } catch (err: any) {
@@ -78,6 +106,13 @@ export default function ProductosPage() {
   useEffect(() => {
     fetchProductos();
   }, []);
+
+  // Foco en el input de edición cuando se activa
+  useEffect(() => {
+    if (editingCell) {
+      setTimeout(() => editInputRef.current?.focus(), 30);
+    }
+  }, [editingCell]);
 
   const handleAddProducto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +142,7 @@ export default function ProductosPage() {
           nombre: nuevoProducto.nombre.trim(),
           precio: nuevoProducto.precio,
           stock: nuevoProducto.stock,
+          categoria: nuevoProducto.categoria.trim() || undefined,
         }),
       });
 
@@ -117,11 +153,9 @@ export default function ProductosPage() {
 
       const producto = await res.json();
       setProductos((prev) => [...prev, producto]);
-      setNuevoProducto({ codigo_barras: "", nombre: "", precio: 0, stock: 0 });
+      setNuevoProducto({ codigo_barras: "", nombre: "", precio: 0, stock: 0, categoria: "" });
       setSuccess("Producto guardado correctamente");
       setTimeout(() => setSuccess(null), 3000);
-
-      // Volver el foco al input de código de barras para el siguiente producto
       barcodeInputRef.current?.focus();
     } catch (err: any) {
       setError(err.message || "Error al guardar producto");
@@ -134,15 +168,11 @@ export default function ProductosPage() {
     setDeletingId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/productos?id=${id}`, {
-        method: "DELETE",
-      });
-
+      const res = await fetch(`/api/productos?id=${id}`, { method: "DELETE" });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || "Error al eliminar producto");
       }
-
       setProductos((prev) => prev.filter((p) => p.id !== id));
       setSuccess("Producto eliminado correctamente");
       setTimeout(() => setSuccess(null), 3000);
@@ -154,12 +184,78 @@ export default function ProductosPage() {
     }
   };
 
-  // Exportar inventario con columnas correctas y legibles
+  // Iniciar edición inline
+  const startEdit = (id: number, field: "precio" | "stock", currentValue: number) => {
+    setEditingCell({ id, field });
+    setEditValue(currentValue.toString());
+  };
+
+  // Guardar edición inline
+  const saveEdit = async () => {
+    if (!editingCell) return;
+    const val = parseFloat(editValue);
+    if (isNaN(val) || val < 0) {
+      setEditingCell(null);
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const body: any = {};
+      if (editingCell.field === "precio") body.precio = val;
+      if (editingCell.field === "stock") body.stock = Math.round(val);
+
+      const res = await fetch(`/api/productos?id=${editingCell.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Error al actualizar");
+      }
+
+      const updated = await res.json();
+      setProductos((prev) =>
+        prev.map((p) =>
+          p.id === editingCell.id
+            ? { ...p, precio: updated.precio, stock: updated.stock }
+            : p
+        )
+      );
+      setSuccess(`${editingCell.field === "precio" ? "Precio" : "Stock"} actualizado`);
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (err: any) {
+      setError(err.message || "Error al actualizar");
+    } finally {
+      setSavingEdit(false);
+      setEditingCell(null);
+    }
+  };
+
+  // Abrir modal de historial de precios
+  const abrirHistorial = async (producto: Producto) => {
+    setHistorialModal({ open: true, productoId: producto.id, productoNombre: producto.nombre });
+    setLoadingHistorial(true);
+    try {
+      const res = await fetch(`/api/historial-precios?producto_id=${producto.id}`);
+      const data = await res.json();
+      setHistorialData(Array.isArray(data) ? data : []);
+    } catch {
+      setHistorialData([]);
+    } finally {
+      setLoadingHistorial(false);
+    }
+  };
+
+  // Exportar inventario
   const exportarInventario = () => {
     const datos = productosFiltrados.map((p) => ({
       ID: p.id,
       "Código de Barras": p.codigo_barras ?? "Sin código",
       Producto: p.nombre,
+      Categoría: p.categoria ?? "Sin categoría",
       "Precio ($)": p.precio.toFixed(2),
       Stock: p.stock,
       Estado: p.stock === 0 ? "Agotado" : p.stock <= 5 ? "Stock Bajo" : "Normal",
@@ -167,22 +263,14 @@ export default function ProductosPage() {
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(datos);
-
-    // Ajustar anchos de columnas
     worksheet["!cols"] = [
-      { wch: 6 },
-      { wch: 18 },
-      { wch: 30 },
-      { wch: 12 },
-      { wch: 8 },
-      { wch: 12 },
-      { wch: 16 },
+      { wch: 6 }, { wch: 18 }, { wch: 30 }, { wch: 16 },
+      { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 16 },
     ];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario");
 
-    // Hoja resumen
     const resumen = [
       { Métrica: "Total de Productos", Valor: totalProductos },
       { Métrica: "Productos con Stock Bajo", Valor: stockBajo },
@@ -197,17 +285,26 @@ export default function ProductosPage() {
     XLSX.writeFile(workbook, `inventario_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
+  // Categorías únicas para el filtro
+  const categoriasUnicas = Array.from(
+    new Set(productos.map((p) => p.categoria).filter(Boolean))
+  ) as string[];
+
   // Filtrar productos
   const productosFiltrados = productos.filter((producto) => {
     const matchesSearch =
       producto.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (producto.codigo_barras ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+      (producto.codigo_barras ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (producto.categoria ?? "").toLowerCase().includes(searchTerm.toLowerCase());
 
     let matchesStock = true;
     if (filterStock === "bajo") matchesStock = producto.stock <= 5 && producto.stock > 0;
     else if (filterStock === "agotado") matchesStock = producto.stock === 0;
 
-    return matchesSearch && matchesStock;
+    const matchesCategoria =
+      filterCategoria === "todas" || producto.categoria === filterCategoria;
+
+    return matchesSearch && matchesStock && matchesCategoria;
   });
 
   // Estadísticas
@@ -291,9 +388,7 @@ export default function ProductosPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-600 dark:to-blue-800 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <FaBox className="text-xl" />
-              </div>
+              <div className="p-2 bg-white/20 rounded-lg"><FaBox className="text-xl" /></div>
               <h3 className="text-sm font-medium opacity-90">Total Productos</h3>
             </div>
             <p className="text-3xl font-bold">{totalProductos}</p>
@@ -301,9 +396,7 @@ export default function ProductosPage() {
 
           <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 dark:from-yellow-600 dark:to-yellow-800 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <FaExclamationTriangle className="text-xl" />
-              </div>
+              <div className="p-2 bg-white/20 rounded-lg"><FaExclamationTriangle className="text-xl" /></div>
               <h3 className="text-sm font-medium opacity-90">Stock Bajo</h3>
             </div>
             <p className="text-3xl font-bold">{stockBajo}</p>
@@ -311,9 +404,7 @@ export default function ProductosPage() {
 
           <div className="bg-gradient-to-br from-red-400 to-red-600 dark:from-red-600 dark:to-red-800 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <FaTimesCircle className="text-xl" />
-              </div>
+              <div className="p-2 bg-white/20 rounded-lg"><FaTimesCircle className="text-xl" /></div>
               <h3 className="text-sm font-medium opacity-90">Agotados</h3>
             </div>
             <p className="text-3xl font-bold">{agotados}</p>
@@ -321,12 +412,12 @@ export default function ProductosPage() {
 
           <div className="bg-gradient-to-br from-green-400 to-green-600 dark:from-green-600 dark:to-green-800 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <FaDollarSign className="text-xl" />
-              </div>
+              <div className="p-2 bg-white/20 rounded-lg"><FaDollarSign className="text-xl" /></div>
               <h3 className="text-sm font-medium opacity-90">Valor Inventario</h3>
             </div>
-            <p className="text-3xl font-bold">${valorInventario.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+            <p className="text-3xl font-bold">
+              ${valorInventario.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
           </div>
         </div>
 
@@ -404,7 +495,7 @@ export default function ProductosPage() {
               </div>
 
               <div className="space-y-4">
-                {/* Código de barras — compatible con escáner físico */}
+                {/* Código de barras */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <div className="flex items-center gap-2">
@@ -422,20 +513,14 @@ export default function ProductosPage() {
                       setNuevoProducto({ ...nuevoProducto, codigo_barras: e.target.value })
                     }
                     onKeyDown={(e) => {
-                      // Los escáneres de código de barras envían Enter al terminar
-                      // Mover foco al nombre automáticamente
                       if (e.key === "Enter" && nuevoProducto.codigo_barras.trim()) {
                         e.preventDefault();
-                        const nombreInput = document.getElementById("producto-nombre");
-                        nombreInput?.focus();
+                        document.getElementById("producto-nombre")?.focus();
                       }
                     }}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 font-mono"
                     autoComplete="off"
                   />
-                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                    Usa el lector de barras o escribe el código manualmente
-                  </p>
                 </div>
 
                 <div>
@@ -453,6 +538,34 @@ export default function ProductosPage() {
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
                     required
                   />
+                </div>
+
+                {/* Categoría */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <div className="flex items-center gap-2">
+                      <FaTag />
+                      Categoría
+                      <span className="text-gray-400 text-xs">(opcional)</span>
+                    </div>
+                  </label>
+                  <input
+                    type="text"
+                    list="categorias-sugeridas"
+                    placeholder="Ej: Bebidas, Snacks, Limpieza..."
+                    value={nuevoProducto.categoria}
+                    onChange={(e) =>
+                      setNuevoProducto({ ...nuevoProducto, categoria: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
+                  />
+                  {categoriasUnicas.length > 0 && (
+                    <datalist id="categorias-sugeridas">
+                      {categoriasUnicas.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
 
                 <div>
@@ -550,7 +663,7 @@ export default function ProductosPage() {
                     <FaSearch className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500" />
                     <input
                       type="text"
-                      placeholder="Buscar por nombre o código..."
+                      placeholder="Buscar por nombre, código o categoría..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
@@ -563,12 +676,32 @@ export default function ProductosPage() {
                       onChange={(e) => setFilterStock(e.target.value)}
                       className="pl-10 pr-8 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 appearance-none cursor-pointer"
                     >
-                      <option value="todos">Todos los productos</option>
+                      <option value="todos">Todos</option>
                       <option value="bajo">Stock bajo (≤5)</option>
                       <option value="agotado">Agotados</option>
                     </select>
                   </div>
+                  {categoriasUnicas.length > 0 && (
+                    <div className="relative">
+                      <FaTag className="absolute left-3 top-3.5 text-gray-400 dark:text-gray-500" />
+                      <select
+                        value={filterCategoria}
+                        onChange={(e) => setFilterCategoria(e.target.value)}
+                        className="pl-10 pr-8 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 appearance-none cursor-pointer"
+                      >
+                        <option value="todas">Categorías</option>
+                        {categoriasUnicas.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
+
+                {/* Hint de edición inline */}
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                  Doble clic en Precio o Stock para editar directamente
+                </p>
               </div>
 
               {/* Tabla */}
@@ -588,34 +721,18 @@ export default function ProductosPage() {
                         ? "No hay productos registrados"
                         : "No se encontraron productos con los filtros aplicados"}
                     </p>
-                    {productos.length === 0 && (
-                      <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
-                        Comienza agregando tu primer producto
-                      </p>
-                    )}
                   </div>
                 ) : (
                   <table className="w-full">
                     <thead className="bg-gray-50 dark:bg-gray-700/50">
                       <tr>
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                          Código
-                        </th>
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                          Producto
-                        </th>
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                          Precio
-                        </th>
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                          Stock
-                        </th>
-                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                          Estado
-                        </th>
-                        <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                          Acciones
-                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Código</th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Producto</th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Categoría</th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Precio</th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Stock</th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Estado</th>
+                        <th className="px-4 py-4 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -633,70 +750,145 @@ export default function ProductosPage() {
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-gray-400 dark:text-gray-500 text-xs italic">
-                                Sin código
-                              </span>
+                              <span className="text-gray-400 dark:text-gray-500 text-xs italic">Sin código</span>
                             )}
                           </td>
                           <td className="px-4 py-4">
-                            <span className="font-medium text-gray-900 dark:text-white">
-                              {p.nombre}
-                            </span>
+                            <span className="font-medium text-gray-900 dark:text-white">{p.nombre}</span>
                           </td>
                           <td className="px-4 py-4 whitespace-nowrap">
-                            <span className="font-semibold text-gray-900 dark:text-white">
-                              ${p.precio.toFixed(2)}
-                            </span>
+                            {p.categoria ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded text-xs font-medium">
+                                <FaTag className="text-xs" />
+                                {p.categoria}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 dark:text-gray-500 text-xs italic">—</span>
+                            )}
                           </td>
+
+                          {/* Precio — edición inline */}
                           <td className="px-4 py-4 whitespace-nowrap">
-                            <span
-                              className={`font-bold ${
-                                p.stock === 0
-                                  ? "text-red-600 dark:text-red-400"
-                                  : p.stock <= 5
-                                  ? "text-yellow-600 dark:text-yellow-400"
-                                  : "text-green-600 dark:text-green-400"
-                              }`}
-                            >
-                              {p.stock}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            {getStockBadge(p.stock)}
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-center">
-                            {confirmDelete === p.id ? (
-                              <div className="flex items-center justify-center gap-2">
-                                <span className="text-xs text-gray-600 dark:text-gray-400">¿Eliminar?</span>
-                                <button
-                                  onClick={() => handleDeleteProducto(p.id)}
-                                  disabled={deletingId === p.id}
-                                  className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium transition-colors disabled:opacity-50"
-                                >
-                                  {deletingId === p.id ? (
-                                    <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <FaCheckCircle />
-                                  )}
-                                  Sí
-                                </button>
-                                <button
-                                  onClick={() => setConfirmDelete(null)}
-                                  className="flex items-center gap-1 px-2 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded text-xs font-medium transition-colors"
-                                >
-                                  <FaTimes />
-                                  No
-                                </button>
+                            {editingCell?.id === p.id && editingCell.field === "precio" ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-500 text-sm">$</span>
+                                <input
+                                  ref={editInputRef}
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveEdit();
+                                    if (e.key === "Escape") setEditingCell(null);
+                                  }}
+                                  onBlur={saveEdit}
+                                  disabled={savingEdit}
+                                  className="w-24 px-2 py-1 border-2 border-blue-500 rounded text-sm dark:bg-gray-700 dark:text-white"
+                                />
                               </div>
                             ) : (
-                              <button
-                                onClick={() => setConfirmDelete(p.id)}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 rounded-lg text-sm font-medium transition-colors mx-auto"
+                              <span
+                                className="font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition-colors"
+                                title="Doble clic para editar"
+                                onDoubleClick={() => startEdit(p.id, "precio", p.precio)}
                               >
-                                <FaTrash className="text-xs" />
-                                Eliminar
-                              </button>
+                                ${p.precio.toFixed(2)}
+                              </span>
                             )}
+                          </td>
+
+                          {/* Stock — edición inline */}
+                          <td className="px-4 py-4 whitespace-nowrap">
+                            {editingCell?.id === p.id && editingCell.field === "stock" ? (
+                              <input
+                                ref={editInputRef}
+                                type="number"
+                                min="0"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveEdit();
+                                  if (e.key === "Escape") setEditingCell(null);
+                                }}
+                                onBlur={saveEdit}
+                                disabled={savingEdit}
+                                className="w-20 px-2 py-1 border-2 border-blue-500 rounded text-sm dark:bg-gray-700 dark:text-white"
+                              />
+                            ) : (
+                              <span
+                                className={`font-bold cursor-pointer hover:underline transition-colors ${
+                                  p.stock === 0
+                                    ? "text-red-600 dark:text-red-400"
+                                    : p.stock <= 5
+                                    ? "text-yellow-600 dark:text-yellow-400"
+                                    : "text-green-600 dark:text-green-400"
+                                }`}
+                                title="Doble clic para editar"
+                                onDoubleClick={() => startEdit(p.id, "stock", p.stock)}
+                              >
+                                {p.stock}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-4 whitespace-nowrap">{getStockBadge(p.stock)}</td>
+
+                          <td className="px-4 py-4 whitespace-nowrap text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {/* Historial de precios */}
+                              <button
+                                onClick={() => abrirHistorial(p)}
+                                className="p-2 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-400 rounded-lg text-sm transition-colors"
+                                title="Ver historial de precios"
+                              >
+                                <FaHistory className="text-xs" />
+                              </button>
+
+                              {/* Editar precio/stock */}
+                              <button
+                                onClick={() => startEdit(p.id, "precio", p.precio)}
+                                className="p-2 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 rounded-lg text-sm transition-colors"
+                                title="Editar precio"
+                              >
+                                <FaEdit className="text-xs" />
+                              </button>
+
+                              {/* Eliminar */}
+                              {confirmDelete === p.id ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-gray-600 dark:text-gray-400">¿Eliminar?</span>
+                                  <button
+                                    onClick={() => handleDeleteProducto(p.id)}
+                                    disabled={deletingId === p.id}
+                                    className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium transition-colors disabled:opacity-50"
+                                  >
+                                    {deletingId === p.id ? (
+                                      <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <FaCheckCircle />
+                                    )}
+                                    Sí
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDelete(null)}
+                                    className="flex items-center gap-1 px-2 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded text-xs font-medium transition-colors"
+                                  >
+                                    <FaTimes />
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setConfirmDelete(p.id)}
+                                  className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 rounded-lg text-sm transition-colors"
+                                  title="Eliminar producto"
+                                >
+                                  <FaTrash className="text-xs" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -722,6 +914,85 @@ export default function ProductosPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal Historial de Precios */}
+      {historialModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setHistorialModal({ open: false, productoId: null, productoNombre: "" })} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {/* Header */}
+            <div className="p-6 bg-gradient-to-r from-indigo-500 to-indigo-700 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <FaHistory className="text-xl" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Historial de Precios</h3>
+                    <p className="text-sm opacity-80 truncate max-w-xs">{historialModal.productoNombre}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setHistorialModal({ open: false, productoId: null, productoNombre: "" })}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <FaTimes />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 max-h-96 overflow-y-auto">
+              {loadingHistorial ? (
+                <div className="text-center py-8">
+                  <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">Cargando historial...</p>
+                </div>
+              ) : historialData.length === 0 ? (
+                <div className="text-center py-8">
+                  <FaHistory className="text-4xl text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">Sin historial de cambios</p>
+                  <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
+                    Los cambios de precio quedarán registrados aquí
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historialData.map((h, i) => {
+                    const subio = h.precio_nuevo > h.precio_anterior;
+                    return (
+                      <div key={h.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                        <div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-gray-500 dark:text-gray-400 line-through">
+                              ${parseFloat(h.precio_anterior as any).toFixed(2)}
+                            </span>
+                            <span className="text-gray-400">→</span>
+                            <span className={`font-bold ${subio ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                              ${parseFloat(h.precio_nuevo as any).toFixed(2)}
+                            </span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${subio ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
+                              {subio ? "▲" : "▼"} {Math.abs(((h.precio_nuevo - h.precio_anterior) / h.precio_anterior) * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                            {new Date(h.fecha).toLocaleString("es-ES")}
+                          </p>
+                        </div>
+                        {i === 0 && (
+                          <span className="text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded-full font-medium">
+                            Último
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

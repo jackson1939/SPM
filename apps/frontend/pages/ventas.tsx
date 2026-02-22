@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
+import { printTicket } from "../utils/printTicket";
 import {
   FaArrowLeft,
   FaShoppingCart,
@@ -16,7 +17,9 @@ import {
   FaMinus,
   FaReceipt,
   FaEdit,
-  FaSearch
+  FaSearch,
+  FaPrint,
+  FaStickyNote,
 } from "react-icons/fa";
 
 interface Producto {
@@ -31,33 +34,56 @@ interface ItemCarrito extends Producto {
   cantidad: number;
 }
 
+// Beep de error via Web Audio API (sin dependencias externas)
+function playErrorBeep() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "square";
+    osc.frequency.setValueAtTime(800, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.35);
+  } catch {
+    // Web Audio API no disponible — ignorar
+  }
+}
+
 export default function VentasPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [codigo, setCodigo] = useState("");
   const [pago, setPago] = useState(0);
+  const [notas, setNotas] = useState("");
   const [ventaCompletada, setVentaCompletada] = useState(false);
+  const [ultimaVenta, setUltimaVenta] = useState<{
+    items: ItemCarrito[];
+    total: number;
+    pago: number;
+    vuelto: number;
+    notas: string;
+    fecha: Date;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para entrada manual
   const [mostrarManual, setMostrarManual] = useState(false);
   const [productoManual, setProductoManual] = useState({ nombre: "", precio: 0 });
 
-  // Estado para sugerencias de búsqueda
   const [sugerencias, setSugerencias] = useState<Producto[]>([]);
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
 
-  // Ref para el input del escáner — siempre debe tener foco
   const codigoInputRef = useRef<HTMLInputElement>(null);
 
-  // Cargar productos desde la API
   useEffect(() => {
     cargarProductos();
   }, []);
 
-  // Mantener foco en el input del escáner cuando no hay otros campos activos
-  // Los escáneres físicos requieren que el input tenga foco para recibir el código
   useEffect(() => {
     const mantenerFoco = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -67,7 +93,6 @@ export default function VentasPage() {
         target.tagName === "SELECT" ||
         target.tagName === "BUTTON";
       if (!esInputOtro && codigoInputRef.current) {
-        // Si se hace clic en una zona neutral, devolver foco al escáner
         setTimeout(() => codigoInputRef.current?.focus(), 50);
       }
     };
@@ -83,7 +108,6 @@ export default function VentasPage() {
         const data = await res.json();
         const productosFormateados = data.map((p: any) => ({
           id: p.id,
-          // Usar null si no tiene código de barras — NO generar AUTO-
           codigo_barras: p.codigo_barras ?? null,
           nombre: p.nombre,
           precio: parseFloat(p.precio) || 0,
@@ -101,22 +125,16 @@ export default function VentasPage() {
     }
   };
 
-  // Buscar producto por valor (código exacto → nombre exacto → parcial)
   const buscarProducto = useCallback((valor: string): Producto | undefined => {
     const v = valor.trim();
     if (!v) return undefined;
-    // 1. Código de barras exacto
     let p = productos.find((p) => p.codigo_barras && p.codigo_barras === v);
-    // 2. Nombre exacto (insensible a mayúsculas)
     if (!p) p = productos.find((p) => p.nombre.toLowerCase() === v.toLowerCase());
-    // 3. Código parcial
     if (!p) p = productos.find((p) => (p.codigo_barras ?? "").toLowerCase().includes(v.toLowerCase()));
-    // 4. Nombre parcial
     if (!p) p = productos.find((p) => p.nombre.toLowerCase().includes(v.toLowerCase()));
     return p;
   }, [productos]);
 
-  // Buscar sugerencias mientras escribe (para teclado manual)
   const handleBuscarProducto = (valor: string) => {
     setCodigo(valor);
     if (valor.length >= 1) {
@@ -132,17 +150,14 @@ export default function VentasPage() {
     }
   };
 
-  // Seleccionar producto de las sugerencias
   const handleSeleccionarSugerencia = (producto: Producto) => {
     agregarProductoAlCarrito(producto);
     setCodigo("");
     setSugerencias([]);
     setMostrarSugerencias(false);
-    // Devolver foco al input para seguir escaneando
     setTimeout(() => codigoInputRef.current?.focus(), 50);
   };
 
-  // Agregar producto al carrito
   const agregarProductoAlCarrito = useCallback((producto: Producto) => {
     if (producto.stock <= 0) {
       alert(`⚠️ "${producto.nombre}" está agotado`);
@@ -157,14 +172,11 @@ export default function VentasPage() {
       }
       return [...prev, { ...producto, cantidad: 1 }];
     });
-    // Descontar stock localmente
     setProductos((prev) =>
       prev.map((p) => p.id === producto.id ? { ...p, stock: p.stock - 1 } : p)
     );
   }, []);
 
-  // Agregar desde el input (tecla Enter o botón)
-  // Usado tanto por teclado manual como por el lector de código de barras
   const handleAgregarProducto = useCallback(() => {
     const trimmed = codigo.trim();
     if (!trimmed) return;
@@ -175,10 +187,10 @@ export default function VentasPage() {
       setCodigo("");
       setSugerencias([]);
       setMostrarSugerencias(false);
-      // Mantener foco en el input para seguir escaneando productos
       setTimeout(() => codigoInputRef.current?.focus(), 30);
     } else {
-      // Mostrar error sin bloquear con alert (no interrumpe el flujo del escáner)
+      // Alerta sonora cuando el código no existe
+      playErrorBeep();
       setError(`Producto "${trimmed}" no encontrado`);
       setCodigo("");
       setTimeout(() => {
@@ -188,7 +200,6 @@ export default function VentasPage() {
     }
   }, [codigo, buscarProducto, agregarProductoAlCarrito]);
 
-  // Agregar producto manualmente
   const handleAgregarManual = () => {
     if (!productoManual.nombre.trim()) {
       alert("❌ Ingresa el nombre del producto");
@@ -200,11 +211,11 @@ export default function VentasPage() {
     }
 
     const productoTemp: ItemCarrito = {
-      id: Date.now(), // ID temporal
+      id: Date.now(),
       codigo_barras: `MANUAL-${Date.now()}`,
       nombre: productoManual.nombre,
       precio: productoManual.precio,
-      stock: 999, // Sin control de stock para productos manuales
+      stock: 999,
       cantidad: 1,
     };
 
@@ -215,15 +226,12 @@ export default function VentasPage() {
 
   const handleEliminarItem = (id: number) => {
     const item = carrito.find((i) => i.id === id);
-    if (item) {
-      // Devolver stock solo si no es producto manual
-      if (!(item.codigo_barras ?? "").startsWith("MANUAL-")) {
-        setProductos(
-          productos.map((p) =>
-            p.id === id ? { ...p, stock: p.stock + item.cantidad } : p
-          )
-        );
-      }
+    if (item && !(item.codigo_barras ?? "").startsWith("MANUAL-")) {
+      setProductos(
+        productos.map((p) =>
+          p.id === id ? { ...p, stock: p.stock + item.cantidad } : p
+        )
+      );
     }
     setCarrito(carrito.filter((i) => i.id !== id));
   };
@@ -232,10 +240,8 @@ export default function VentasPage() {
     const item = carrito.find((i) => i.id === id);
     if (!item) return;
 
-    // Para productos manuales, no verificar stock
     const esManual = (item.codigo_barras ?? "").startsWith("MANUAL-");
     const producto = productos.find((p) => p.id === id);
-
     const nuevaCantidad = item.cantidad + delta;
 
     if (delta > 0 && !esManual && producto && producto.stock <= 0) {
@@ -248,18 +254,11 @@ export default function VentasPage() {
       return;
     }
 
-    setCarrito(
-      carrito.map((i) =>
-        i.id === id ? { ...i, cantidad: nuevaCantidad } : i
-      )
-    );
+    setCarrito(carrito.map((i) => i.id === id ? { ...i, cantidad: nuevaCantidad } : i));
 
-    // Actualizar stock solo para productos no manuales
     if (!esManual && producto) {
       setProductos(
-        productos.map((p) =>
-          p.id === id ? { ...p, stock: p.stock - delta } : p
-        )
+        productos.map((p) => p.id === id ? { ...p, stock: p.stock - delta } : p)
       );
     }
   };
@@ -271,7 +270,6 @@ export default function VentasPage() {
       alert("⚠️ El carrito está vacío");
       return;
     }
-
     if (pago < total) {
       alert("⚠️ El monto pagado es insuficiente");
       return;
@@ -280,7 +278,6 @@ export default function VentasPage() {
     setProcesandoVenta(true);
 
     try {
-      // Preparar items para el API
       const items = carrito.map((item) => ({
         producto_id: (item.codigo_barras ?? "").startsWith("MANUAL-") ? null : item.id,
         nombre: item.nombre,
@@ -295,34 +292,34 @@ export default function VentasPage() {
           items,
           metodo_pago: "efectivo",
           monto_pagado: pago,
+          notas: notas.trim() || undefined,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
         console.log("Venta registrada:", data);
-        
-        // Manejar respuesta con múltiples ventas o una sola
-        if (data.ventas) {
-          // Múltiples ventas registradas
-          console.log(`${data.total_ventas} venta(s) registrada(s)`, data);
-          if (data.errores && data.errores.length > 0) {
-            console.warn("Algunos items tuvieron errores:", data.errores);
-          }
-        } else {
-          // Una sola venta (compatibilidad)
-          console.log("Venta única registrada:", data);
-        }
-        
+
+        // Guardar datos del ticket antes de limpiar carrito
+        setUltimaVenta({
+          items: [...carrito],
+          total,
+          pago,
+          vuelto,
+          notas: notas.trim(),
+          fecha: new Date(),
+        });
+
         setVentaCompletada(true);
-        
+
         setTimeout(() => {
           setCarrito([]);
           setPago(0);
+          setNotas("");
           setVentaCompletada(false);
-          // Recargar productos para reflejar el stock actualizado
+          setUltimaVenta(null);
           cargarProductos();
-        }, 3000);
+        }, 5000);
       } else {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || "Error al registrar venta");
@@ -336,21 +333,35 @@ export default function VentasPage() {
   };
 
   const handleLimpiarCarrito = () => {
-    // Devolver todo el stock (excepto productos manuales)
     const stockRestaurado = [...productos];
     carrito.forEach((item) => {
       if (!(item.codigo_barras ?? "").startsWith("MANUAL-")) {
-        const productoIndex = stockRestaurado.findIndex(
-          (p) => p.id === item.id
-        );
-        if (productoIndex !== -1) {
-          stockRestaurado[productoIndex].stock += item.cantidad;
+        const idx = stockRestaurado.findIndex((p) => p.id === item.id);
+        if (idx !== -1) {
+          stockRestaurado[idx].stock += item.cantidad;
         }
       }
     });
     setProductos(stockRestaurado);
     setCarrito([]);
     setPago(0);
+    setNotas("");
+  };
+
+  const handleImprimirTicket = () => {
+    if (!ultimaVenta) return;
+    printTicket({
+      items: ultimaVenta.items.map((i) => ({
+        nombre: i.nombre,
+        cantidad: i.cantidad,
+        precio: i.precio,
+      })),
+      total: ultimaVenta.total,
+      pago: ultimaVenta.pago,
+      vuelto: ultimaVenta.vuelto,
+      notas: ultimaVenta.notas || undefined,
+      fecha: ultimaVenta.fecha,
+    });
   };
 
   const subtotal = carrito.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
@@ -358,7 +369,6 @@ export default function VentasPage() {
   const vuelto = pago > 0 ? Math.max(0, pago - total) : 0;
   const totalItems = carrito.reduce((acc, item) => acc + item.cantidad, 0);
 
-  // Detectar productos con stock bajo
   const productosBajos = productos.filter((p) => p.stock <= 2 && p.stock > 0);
   const productosAgotados = productos.filter((p) => p.stock === 0);
 
@@ -386,25 +396,37 @@ export default function VentasPage() {
           </Link>
         </div>
 
-        {/* Mensaje de venta completada */}
+        {/* Venta completada */}
         {ventaCompletada && (
           <div className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 p-4 rounded-lg animate-fadeIn">
             <div className="flex items-start gap-3">
               <FaCheckCircle className="text-green-500 dark:text-green-400 text-2xl flex-shrink-0 mt-0.5" />
-              <div>
+              <div className="flex-1">
                 <p className="font-bold text-green-800 dark:text-green-300 text-lg">
                   ¡Venta Completada!
                 </p>
                 <p className="text-green-700 dark:text-green-400">
-                  La transacción se ha registrado exitosamente
+                  Total: <strong>${total.toFixed(2)}</strong> — Vuelto: <strong>${vuelto.toFixed(2)}</strong>
                 </p>
+                {ultimaVenta?.notas && (
+                  <p className="text-green-600 dark:text-green-500 text-sm mt-1">
+                    Notas: {ultimaVenta.notas}
+                  </p>
+                )}
               </div>
+              <button
+                onClick={handleImprimirTicket}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-md"
+              >
+                <FaPrint />
+                Imprimir Ticket
+              </button>
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Panel de ingreso */}
+          {/* Panel izquierdo */}
           <div className="lg:col-span-1 space-y-6">
             {/* Escáner */}
             <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
@@ -416,16 +438,16 @@ export default function VentasPage() {
                   Escanear Producto
                 </h2>
               </div>
-              
+
               {loading ? (
                 <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
                   <p className="text-gray-500 dark:text-gray-400 mt-2">Cargando productos...</p>
                 </div>
               ) : error ? (
                 <div className="text-center py-4">
                   <p className="text-red-500 dark:text-red-400">{error}</p>
-                  <button 
+                  <button
                     onClick={cargarProductos}
                     className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                   >
@@ -434,7 +456,6 @@ export default function VentasPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* Indicador de estado del escáner */}
                   <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
                     <span className="text-xs text-green-700 dark:text-green-400 font-medium">
@@ -442,7 +463,6 @@ export default function VentasPage() {
                     </span>
                   </div>
 
-                  {/* Campo de búsqueda / escáner */}
                   <div className="relative">
                     <div className="relative">
                       <FaBarcode className="absolute left-3 top-3.5 text-blue-500 dark:text-blue-400 text-lg" />
@@ -455,7 +475,6 @@ export default function VentasPage() {
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
-                            // Enter = señal del lector físico de código de barras
                             handleAgregarProducto();
                           }
                           if (e.key === "Escape") {
@@ -481,7 +500,6 @@ export default function VentasPage() {
                       )}
                     </div>
 
-                    {/* Lista de sugerencias */}
                     {mostrarSugerencias && sugerencias.length > 0 && (
                       <div className="absolute z-20 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl shadow-xl max-h-72 overflow-y-auto">
                         <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
@@ -489,11 +507,10 @@ export default function VentasPage() {
                             {sugerencias.length} resultado{sugerencias.length !== 1 ? "s" : ""} — haz clic o presiona Enter
                           </p>
                         </div>
-                        {sugerencias.map((producto, idx) => (
+                        {sugerencias.map((producto) => (
                           <button
                             key={producto.id}
                             onMouseDown={(e) => {
-                              // mouseDown en vez de onClick para ejecutarse antes del onBlur del input
                               e.preventDefault();
                               handleSeleccionarSugerencia(producto);
                             }}
@@ -527,8 +544,7 @@ export default function VentasPage() {
                     <FaPlus />
                     Agregar al Carrito
                   </button>
-                  
-                  {/* Botón para agregar manualmente */}
+
                   <button
                     onClick={() => setMostrarManual(!mostrarManual)}
                     className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 dark:from-purple-600 dark:to-purple-700 text-white py-3 px-4 rounded-lg font-medium shadow-md hover:shadow-xl transition-all duration-200"
@@ -536,8 +552,7 @@ export default function VentasPage() {
                     <FaEdit />
                     {mostrarManual ? "Cerrar" : "Agregar Manualmente"}
                   </button>
-                  
-                  {/* Formulario de entrada manual */}
+
                   {mostrarManual && (
                     <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg space-y-3">
                       <h3 className="font-semibold text-purple-800 dark:text-purple-300 flex items-center gap-2">
@@ -588,7 +603,7 @@ export default function VentasPage() {
               )}
             </div>
 
-            {/* Totales y pago */}
+            {/* Resumen de pago */}
             <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
               <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">
                 Resumen de Pago
@@ -612,9 +627,7 @@ export default function VentasPage() {
                     Monto Pagado
                   </label>
                   <div className="relative">
-                    <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">
-                      $
-                    </span>
+                    <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">$</span>
                     <input
                       type="number"
                       step="0.01"
@@ -628,35 +641,39 @@ export default function VentasPage() {
                 </div>
 
                 {pago > 0 && (
-                  <div
-                    className={`p-4 rounded-lg ${
-                      vuelto >= 0
-                        ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                        : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-                    }`}
-                  >
+                  <div className={`p-4 rounded-lg ${
+                    vuelto >= 0
+                      ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                      : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                  }`}>
                     <div className="flex justify-between items-center">
-                      <span
-                        className={`font-medium ${
-                          vuelto >= 0
-                            ? "text-green-700 dark:text-green-400"
-                            : "text-red-700 dark:text-red-400"
-                        }`}
-                      >
+                      <span className={`font-medium ${vuelto >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
                         {vuelto >= 0 ? "Vuelto:" : "Falta:"}
                       </span>
-                      <span
-                        className={`text-2xl font-bold ${
-                          vuelto >= 0
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-red-600 dark:text-red-400"
-                        }`}
-                      >
+                      <span className={`text-2xl font-bold ${vuelto >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         ${Math.abs(vuelto).toFixed(2)}
                       </span>
                     </div>
                   </div>
                 )}
+
+                {/* Notas de la venta */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <div className="flex items-center gap-2">
+                      <FaStickyNote className="text-yellow-500" />
+                      Notas de la venta
+                      <span className="text-gray-400 text-xs">(opcional)</span>
+                    </div>
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ej: Descuento aplicado, cliente frecuente, observaciones..."
+                    value={notas}
+                    onChange={(e) => setNotas(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-yellow-500 dark:focus:ring-yellow-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 text-sm resize-none"
+                  />
+                </div>
 
                 <button
                   onClick={handleCompletarVenta}
@@ -665,7 +682,7 @@ export default function VentasPage() {
                 >
                   {procesandoVenta ? (
                     <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
                       Procesando...
                     </>
                   ) : (
@@ -751,9 +768,8 @@ export default function VentasPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                          {/* Controles de cantidad */}
                           <div className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg p-1 border border-gray-300 dark:border-gray-600">
-                        <button
+                            <button
                               onClick={() => handleCambiarCantidad(item.id, -1)}
                               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                             >
@@ -774,17 +790,13 @@ export default function VentasPage() {
                             </button>
                           </div>
 
-                          {/* Subtotal */}
                           <div className="text-right min-w-[6rem]">
-                            <p className="text-gray-500 dark:text-gray-400 text-xs">
-                              Subtotal
-                            </p>
+                            <p className="text-gray-500 dark:text-gray-400 text-xs">Subtotal</p>
                             <p className="text-xl font-bold text-gray-900 dark:text-white">
                               ${(item.precio * item.cantidad).toFixed(2)}
                             </p>
                           </div>
 
-                          {/* Botón eliminar */}
                           <button
                             onClick={() => handleEliminarItem(item.id)}
                             className="p-3 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-lg transition-all duration-200"
@@ -812,10 +824,7 @@ export default function VentasPage() {
                         </p>
                         <ul className="space-y-1">
                           {productosBajos.map((p) => (
-                            <li
-                              key={p.codigo_barras}
-                              className="text-yellow-700 dark:text-yellow-400"
-                            >
+                            <li key={p.codigo_barras} className="text-yellow-700 dark:text-yellow-400">
                               • {p.nombre} (Stock: {p.stock})
                             </li>
                           ))}
@@ -835,10 +844,7 @@ export default function VentasPage() {
                         </p>
                         <ul className="space-y-1">
                           {productosAgotados.map((p) => (
-                            <li
-                              key={p.codigo_barras}
-                              className="text-red-700 dark:text-red-400"
-                            >
+                            <li key={p.codigo_barras} className="text-red-700 dark:text-red-400">
                               • {p.nombre}
                             </li>
                           ))}

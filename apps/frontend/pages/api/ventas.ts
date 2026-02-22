@@ -9,9 +9,15 @@ async function insertarVenta(
   precio_unitario: number,
   total: number,
   metodo_pago: string,
-  nombre?: string
+  nombre?: string,
+  notas?: string
 ): Promise<any> {
   const intentos = [
+    {
+      query: `INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, metodo_pago, notas, fecha)
+              VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
+      params: [producto_id, cantidad, precio_unitario, total, metodo_pago, notas || null]
+    },
     {
       query: `INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, metodo_pago, fecha)
               VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`,
@@ -111,7 +117,7 @@ export default async function handler(
 
     // POST: registrar una nueva venta
     if (req.method === "POST") {
-      const { items, metodo_pago = "efectivo", monto_pagado } = req.body;
+      const { items, metodo_pago = "efectivo", monto_pagado, notas } = req.body;
 
       if (!items || !Array.isArray(items) || items.length === 0) {
         return res.status(400).json({
@@ -165,7 +171,7 @@ export default async function handler(
 
           try {
             const ventaRes = await insertarVenta(
-              db, producto_id, cantidad, precio_unitario, subtotal, metodo_pago, productoNombre
+              db, producto_id, cantidad, precio_unitario, subtotal, metodo_pago, productoNombre, notas
             );
             const ventaGuardada = ventaRes.rows[0];
             ventasRegistradas.push({
@@ -194,7 +200,7 @@ export default async function handler(
           // Producto manual — también intentar guardarlo en ventas
           try {
             const ventaRes = await insertarVenta(
-              db, null, cantidad, precio_unitario, subtotal, metodo_pago, productoNombre
+              db, null, cantidad, precio_unitario, subtotal, metodo_pago, productoNombre, notas
             );
             const ventaGuardada = ventaRes.rows[0];
             ventasRegistradas.push({

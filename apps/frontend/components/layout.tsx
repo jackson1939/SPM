@@ -1,5 +1,5 @@
 // apps/frontend/components/layout.tsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -21,6 +21,10 @@ import {
   FaCheckCircle,
   FaDollarSign,
   FaSync,
+  FaSearch,
+  FaBarcode,
+  FaTag,
+  FaKeyboard,
 } from "react-icons/fa";
 
 interface LayoutProps {
@@ -35,6 +39,15 @@ interface Notificacion {
   tiempo: Date;
 }
 
+interface ProductoBusqueda {
+  id: number;
+  nombre: string;
+  codigo_barras: string | null;
+  precio: number;
+  stock: number;
+  categoria: string | null;
+}
+
 export default function Layout({ children }: LayoutProps) {
   const [role, setRole] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notificacion[]>([]);
@@ -43,6 +56,15 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [cargandoNotifs, setCargandoNotifs] = useState(false);
+
+  // Búsqueda global ⌘K / Ctrl+K
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [globalSearchQ, setGlobalSearchQ] = useState("");
+  const [allProducts, setAllProducts] = useState<ProductoBusqueda[]>([]);
+  const [searchResults, setSearchResults] = useState<ProductoBusqueda[]>([]);
+  const [selectedResultIdx, setSelectedResultIdx] = useState(0);
+  const globalSearchInputRef = useRef<HTMLInputElement>(null);
+
   const router = useRouter();
 
   // Genera un ID único para cada notificación
@@ -178,6 +200,68 @@ export default function Layout({ children }: LayoutProps) {
       document.documentElement.classList.add("dark");
     }
   }, [router, cargarNotificaciones]);
+
+  // Atajo de teclado ⌘K / Ctrl+K para búsqueda global
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setShowGlobalSearch((prev) => !prev);
+        setGlobalSearchQ("");
+        setSearchResults([]);
+        setSelectedResultIdx(0);
+      }
+      if (e.key === "Escape" && showGlobalSearch) {
+        setShowGlobalSearch(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [showGlobalSearch]);
+
+  // Cargar productos cuando se abre el buscador
+  useEffect(() => {
+    if (showGlobalSearch) {
+      setTimeout(() => globalSearchInputRef.current?.focus(), 50);
+      if (allProducts.length === 0) {
+        fetch("/api/productos")
+          .then((r) => r.json())
+          .then((data: any[]) =>
+            setAllProducts(
+              data.map((p) => ({
+                id: p.id,
+                nombre: p.nombre,
+                codigo_barras: p.codigo_barras ?? null,
+                precio: parseFloat(p.precio) || 0,
+                stock: parseInt(p.stock) || 0,
+                categoria: p.categoria ?? null,
+              }))
+            )
+          )
+          .catch(() => {});
+      }
+    }
+  }, [showGlobalSearch, allProducts.length]);
+
+  // Filtrar resultados en tiempo real
+  useEffect(() => {
+    if (!globalSearchQ.trim()) {
+      setSearchResults([]);
+      setSelectedResultIdx(0);
+      return;
+    }
+    const q = globalSearchQ.toLowerCase();
+    const results = allProducts
+      .filter(
+        (p) =>
+          p.nombre.toLowerCase().includes(q) ||
+          (p.codigo_barras ?? "").toLowerCase().includes(q) ||
+          (p.categoria ?? "").toLowerCase().includes(q)
+      )
+      .slice(0, 8);
+    setSearchResults(results);
+    setSelectedResultIdx(0);
+  }, [globalSearchQ, allProducts]);
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -423,6 +507,23 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
 
                 <div className="flex items-center gap-3">
+                  {/* Búsqueda global ⌘K */}
+                  <button
+                    onClick={() => {
+                      setShowGlobalSearch(true);
+                      setGlobalSearchQ("");
+                      setSearchResults([]);
+                    }}
+                    className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 border border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 text-sm group"
+                    title="Búsqueda global (⌘K)"
+                  >
+                    <FaSearch className="text-sm" />
+                    <span className="hidden lg:inline">Buscar producto...</span>
+                    <kbd className="hidden lg:flex items-center gap-0.5 px-1.5 py-0.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono text-gray-500 dark:text-gray-400">
+                      ⌘K
+                    </kbd>
+                  </button>
+
                   {/* Dark Mode */}
                   <button
                     onClick={toggleDarkMode}
@@ -658,6 +759,148 @@ export default function Layout({ children }: LayoutProps) {
             setShowUserMenu(false);
           }}
         />
+      )}
+
+      {/* Modal de Búsqueda Global ⌘K */}
+      {showGlobalSearch && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center pt-20 px-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowGlobalSearch(false)}
+          />
+
+          {/* Modal */}
+          <div className="relative w-full max-w-xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden animate-slideDown">
+            {/* Barra de búsqueda */}
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+              <FaSearch className="text-gray-400 dark:text-gray-500 flex-shrink-0 text-lg" />
+              <input
+                ref={globalSearchInputRef}
+                type="text"
+                placeholder="Buscar producto por nombre, código o categoría..."
+                value={globalSearchQ}
+                onChange={(e) => setGlobalSearchQ(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSelectedResultIdx((i) => Math.min(i + 1, searchResults.length - 1));
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSelectedResultIdx((i) => Math.max(i - 1, 0));
+                  } else if (e.key === "Enter" && searchResults[selectedResultIdx]) {
+                    router.push("/productos");
+                    setShowGlobalSearch(false);
+                  } else if (e.key === "Escape") {
+                    setShowGlobalSearch(false);
+                  }
+                }}
+                className="flex-1 bg-transparent outline-none text-gray-900 dark:text-white text-base placeholder-gray-400 dark:placeholder-gray-500"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <kbd className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-xs font-mono text-gray-500 dark:text-gray-400">
+                  Esc
+                </kbd>
+              </div>
+            </div>
+
+            {/* Resultados */}
+            <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
+              {!globalSearchQ.trim() ? (
+                <div className="p-6 text-center">
+                  <FaKeyboard className="text-4xl text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">
+                    Escribe para buscar productos
+                  </p>
+                  <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
+                    Busca por nombre, código de barras o categoría
+                  </p>
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="p-6 text-center">
+                  <FaSearch className="text-3xl text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">
+                    No se encontraron productos
+                  </p>
+                  <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
+                    Prueba con otro término de búsqueda
+                  </p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {searchResults.map((p, idx) => (
+                    <li key={p.id}>
+                      <Link href="/productos">
+                        <div
+                          onClick={() => setShowGlobalSearch(false)}
+                          className={`flex items-center justify-between px-5 py-3.5 cursor-pointer transition-colors ${
+                            idx === selectedResultIdx
+                              ? "bg-blue-50 dark:bg-blue-900/20"
+                              : "hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                          }`}
+                          onMouseEnter={() => setSelectedResultIdx(idx)}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-900 dark:text-white truncate">
+                                {p.nombre}
+                              </p>
+                              {p.categoria && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded text-xs font-medium flex-shrink-0">
+                                  <FaTag className="text-xs" />
+                                  {p.categoria}
+                                </span>
+                              )}
+                            </div>
+                            {p.codigo_barras && (
+                              <p className="text-xs text-gray-400 dark:text-gray-500 font-mono mt-0.5 flex items-center gap-1">
+                                <FaBarcode className="text-xs" />
+                                {p.codigo_barras}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0 ml-4">
+                            <p className="font-bold text-blue-600 dark:text-blue-400">
+                              ${p.precio.toFixed(2)}
+                            </p>
+                            <p className={`text-xs font-medium ${
+                              p.stock === 0
+                                ? "text-red-500"
+                                : p.stock <= 5
+                                ? "text-yellow-500"
+                                : "text-green-500"
+                            }`}>
+                              Stock: {p.stock}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Footer del buscador */}
+            {searchResults.length > 0 && (
+              <div className="px-5 py-3 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <kbd className="px-1 py-0.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded font-mono">↑↓</kbd>
+                    Navegar
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <kbd className="px-1 py-0.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded font-mono">↵</kbd>
+                    Ir a Productos
+                  </span>
+                </div>
+                <span>{searchResults.length} resultado{searchResults.length !== 1 ? "s" : ""}</span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       <style jsx global>{`

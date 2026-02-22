@@ -9,14 +9,16 @@ generator client {
 }
 
 model Producto {
-  id            Int      @id @default(autoincrement())
-  codigo_barras String   @unique
-  nombre        String
-  precio        Float
-  stock         Int      @default(0)
-  fecha_ingreso DateTime @default(now())
-  compras       Compra[]
-  ventas        Venta[]
+  id              Int               @id @default(autoincrement())
+  codigo_barras   String            @unique
+  nombre          String
+  precio          Float
+  stock           Int               @default(0)
+  categoria       String?           @db.VarChar(100)
+  fecha_ingreso   DateTime          @default(now())
+  compras         Compra[]
+  ventas          Venta[]
+  historialPrecios HistorialPrecio[]
 
   @@map("productos")
 }
@@ -44,4 +46,15 @@ model Venta {
   producto        Producto @relation(fields: [producto_id], references: [id])
 
   @@map("ventas")
+}
+
+model HistorialPrecio {
+  id               Int      @id @default(autoincrement())
+  producto_id      Int
+  precio_anterior  Float
+  precio_nuevo     Float
+  fecha            DateTime @default(now())
+  producto         Producto @relation(fields: [producto_id], references: [id], onDelete: Cascade)
+
+  @@map("historial_precios")
 }

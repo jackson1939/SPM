@@ -3,7 +3,7 @@ import '../styles/globals.css';
 import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
 import Layout from '../components/layout';
-import { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode, useEffect } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -53,6 +53,16 @@ class ErrorBoundary extends Component<Props, State> {
 
 function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
+
+  // Ejecutar migraciones automáticamente una vez por sesión
+  useEffect(() => {
+    if (typeof window !== "undefined" && !sessionStorage.getItem("_spm_mig_done")) {
+      fetch("/api/migrate", { method: "POST" })
+        .then((r) => r.json())
+        .then(() => sessionStorage.setItem("_spm_mig_done", "1"))
+        .catch(() => {});
+    }
+  }, []);
 
   // Páginas que NO deben tener el Layout (páginas públicas)
   const publicPages = ['/login', '/', '/404'];

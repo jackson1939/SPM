@@ -4,6 +4,7 @@ import Head from "next/head";
 import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
 import { printTicket } from "../utils/printTicket";
+import { formatPrecio } from "../utils/formatPrecio";
 import {
   FaArrowLeft,
   FaShoppingCart,
@@ -406,7 +407,7 @@ export default function VentasPage() {
                   ¡Venta Completada!
                 </p>
                 <p className="text-green-700 dark:text-green-400">
-                  Total: <strong>${total.toFixed(2)}</strong> — Vuelto: <strong>${vuelto.toFixed(2)}</strong>
+                  Total: <strong>${formatPrecio(total)}</strong> — Vuelto: <strong>${formatPrecio(vuelto)}</strong>
                 </p>
                 {ultimaVenta?.notas && (
                   <p className="text-green-600 dark:text-green-500 text-sm mt-1">
@@ -524,7 +525,7 @@ export default function VentasPage() {
                                 </p>
                               </div>
                               <div className="text-right flex-shrink-0">
-                                <p className="font-bold text-blue-600 dark:text-blue-400">${producto.precio.toFixed(2)}</p>
+                                <p className="font-bold text-blue-600 dark:text-blue-400">${formatPrecio(producto.precio)}</p>
                                 <p className={`text-xs font-medium ${producto.stock === 0 ? "text-red-500" : producto.stock <= 5 ? "text-yellow-500" : "text-green-500"}`}>
                                   Stock: {producto.stock}
                                 </p>
@@ -612,13 +613,13 @@ export default function VentasPage() {
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
                   <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
                   <span className="text-xl font-semibold text-gray-900 dark:text-white">
-                    ${subtotal.toFixed(2)}
+                    ${formatPrecio(subtotal)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
                   <span className="text-gray-600 dark:text-gray-400 font-bold">Total:</span>
                   <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    ${total.toFixed(2)}
+                    ${formatPrecio(total)}
                   </span>
                 </div>
 
@@ -651,7 +652,7 @@ export default function VentasPage() {
                         {vuelto >= 0 ? "Vuelto:" : "Falta:"}
                       </span>
                       <span className={`text-2xl font-bold ${vuelto >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                        ${Math.abs(vuelto).toFixed(2)}
+                        ${formatPrecio(Math.abs(vuelto))}
                       </span>
                     </div>
                   </div>
@@ -763,7 +764,7 @@ export default function VentasPage() {
                             {item.codigo_barras ?? "Sin código"}
                           </p>
                           <p className="text-blue-600 dark:text-blue-400 font-bold mt-1">
-                            ${item.precio.toFixed(2)} c/u
+                            ${formatPrecio(item.precio)} c/u
                           </p>
                         </div>
 
@@ -793,7 +794,7 @@ export default function VentasPage() {
                           <div className="text-right min-w-[6rem]">
                             <p className="text-gray-500 dark:text-gray-400 text-xs">Subtotal</p>
                             <p className="text-xl font-bold text-gray-900 dark:text-white">
-                              ${(item.precio * item.cantidad).toFixed(2)}
+                              ${formatPrecio(item.precio * item.cantidad)}
                             </p>
                           </div>
 

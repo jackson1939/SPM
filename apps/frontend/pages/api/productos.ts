@@ -70,18 +70,40 @@ export default async function handler(
       }
 
       let result;
-      if (codigoLimpio) {
-        result = await db.query(
-          `INSERT INTO productos (codigo_barras, nombre, precio, stock, categoria)
-           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-          [codigoLimpio, nombre.trim(), precioNum, stockNum, categoriaLimpia]
-        );
-      } else {
-        result = await db.query(
-          `INSERT INTO productos (nombre, precio, stock, categoria)
-           VALUES ($1, $2, $3, $4) RETURNING *`,
-          [nombre.trim(), precioNum, stockNum, categoriaLimpia]
-        );
+      try {
+        if (codigoLimpio) {
+          result = await db.query(
+            `INSERT INTO productos (codigo_barras, nombre, precio, stock, categoria)
+             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [codigoLimpio, nombre.trim(), precioNum, stockNum, categoriaLimpia]
+          );
+        } else {
+          result = await db.query(
+            `INSERT INTO productos (nombre, precio, stock, categoria)
+             VALUES ($1, $2, $3, $4) RETURNING *`,
+            [nombre.trim(), precioNum, stockNum, categoriaLimpia]
+          );
+        }
+      } catch (insertErr: any) {
+        if (insertErr.code === "42703") {
+          // La columna 'categoria' no existe aún — reintentar sin ella
+          console.log("Columna 'categoria' no existe, reintentando sin ella...");
+          if (codigoLimpio) {
+            result = await db.query(
+              `INSERT INTO productos (codigo_barras, nombre, precio, stock)
+               VALUES ($1, $2, $3, $4) RETURNING *`,
+              [codigoLimpio, nombre.trim(), precioNum, stockNum]
+            );
+          } else {
+            result = await db.query(
+              `INSERT INTO productos (nombre, precio, stock)
+               VALUES ($1, $2, $3) RETURNING *`,
+              [nombre.trim(), precioNum, stockNum]
+            );
+          }
+        } else {
+          throw insertErr;
+        }
       }
 
       const producto = result.rows[0];
@@ -175,10 +197,36 @@ export default async function handler(
       }
 
       values.push(idNum);
-      const result = await db.query(
-        `UPDATE productos SET ${updates.join(", ")} WHERE id = $${paramCount} RETURNING *`,
-        values
-      );
+      let result;
+      try {
+        result = await db.query(
+          `UPDATE productos SET ${updates.join(", ")} WHERE id = $${paramCount} RETURNING *`,
+          values
+        );
+      } catch (updateErr: any) {
+        if (updateErr.code === "42703") {
+          // Alguna columna no existe (ej: categoria) — filtrarla y reintentar
+          const updatesLimpios: string[] = [];
+          const valuesLimpios: any[] = [];
+          let pIdx = 1;
+          updates.forEach((u, i) => {
+            if (!u.includes("categoria")) {
+              updatesLimpios.push(`${u.split(" = ")[0]} = $${pIdx++}`);
+              valuesLimpios.push(values[i]);
+            }
+          });
+          if (updatesLimpios.length === 0) {
+            throw updateErr;
+          }
+          valuesLimpios.push(idNum);
+          result = await db.query(
+            `UPDATE productos SET ${updatesLimpios.join(", ")} WHERE id = $${pIdx} RETURNING *`,
+            valuesLimpios
+          );
+        } else {
+          throw updateErr;
+        }
+      }
 
       // Registrar historial de precio si cambió
       if (precio !== undefined) {

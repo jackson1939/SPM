@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { formatPrecio } from "../utils/formatPrecio";
 import {
   FaBell,
   FaBox,
@@ -144,7 +145,7 @@ export default function Layout({ children }: LayoutProps) {
               id: genId(),
               tipo: "success",
               titulo: "Ventas de hoy",
-              mensaje: `${ventasHoy.length} transacción${ventasHoy.length !== 1 ? "es" : ""} · ${cantidadHoy} unidades · $${totalHoy.toFixed(2)}`,
+              mensaje: `${ventasHoy.length} transacción${ventasHoy.length !== 1 ? "es" : ""} · ${cantidadHoy} unidades · $${formatPrecio(totalHoy)}`,
               tiempo: new Date(),
             });
           } else {
@@ -466,21 +467,25 @@ export default function Layout({ children }: LayoutProps) {
           <div className="p-4 border-t border-white/10">
             {!sidebarCollapsed ? (
               <div className="space-y-2 animate-fadeIn">
-                <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-all duration-200 group">
-                  <FaCog className="text-white/60 group-hover:text-white transition-colors" />
-                  <span className="text-sm text-white/70 group-hover:text-white transition-colors">
-                    Configuración
-                  </span>
-                </button>
+                <Link href="/configuracion">
+                  <div className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-all duration-200 group cursor-pointer ${router.pathname === "/configuracion" ? "bg-white/10 border border-white/20" : ""}`}>
+                    <FaCog className="text-white/60 group-hover:text-white transition-colors" />
+                    <span className="text-sm text-white/70 group-hover:text-white transition-colors">
+                      Configuración
+                    </span>
+                  </div>
+                </Link>
                 <div className="text-xs text-white/40 text-center pt-2">
                   <p>© 2026 VEROKAI</p>
                   <p className="mt-0.5">v1.0.0</p>
                 </div>
               </div>
             ) : (
-              <button className="w-full flex justify-center py-3 rounded-xl hover:bg-white/5 transition-all duration-200">
-                <FaCog className="text-white/60 hover:text-white transition-colors" />
-              </button>
+              <Link href="/configuracion">
+                <div className="w-full flex justify-center py-3 rounded-xl hover:bg-white/5 transition-all duration-200 cursor-pointer">
+                  <FaCog className="text-white/60 hover:text-white transition-colors" />
+                </div>
+              </Link>
             )}
           </div>
         </aside>
@@ -721,10 +726,12 @@ export default function Layout({ children }: LayoutProps) {
                           </div>
                         </div>
                         <div className="p-2">
-                          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left">
-                            <FaCog className="text-gray-500 dark:text-gray-400" />
-                            <span className="text-gray-700 dark:text-gray-300 text-sm">Configuración</span>
-                          </button>
+                          <Link href="/configuracion">
+                            <div className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left cursor-pointer" onClick={() => setShowUserMenu(false)}>
+                              <FaCog className="text-gray-500 dark:text-gray-400" />
+                              <span className="text-gray-700 dark:text-gray-300 text-sm">Configuración</span>
+                            </div>
+                          </Link>
                           <button
                             onClick={handleLogout}
                             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left group"
@@ -863,7 +870,7 @@ export default function Layout({ children }: LayoutProps) {
                           </div>
                           <div className="text-right flex-shrink-0 ml-4">
                             <p className="font-bold text-blue-600 dark:text-blue-400">
-                              ${p.precio.toFixed(2)}
+                              ${formatPrecio(p.precio)}
                             </p>
                             <p className={`text-xs font-medium ${
                               p.stock === 0

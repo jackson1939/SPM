@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import * as XLSX from "xlsx";
+import { formatPrecio } from "../utils/formatPrecio";
 import {
   FaArrowLeft,
   FaPlus,
@@ -416,7 +417,7 @@ export default function ProductosPage() {
               <h3 className="text-sm font-medium opacity-90">Valor Inventario</h3>
             </div>
             <p className="text-3xl font-bold">
-              ${valorInventario.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${formatPrecio(valorInventario)}
             </p>
           </div>
         </div>
@@ -794,7 +795,7 @@ export default function ProductosPage() {
                                 title="Doble clic para editar"
                                 onDoubleClick={() => startEdit(p.id, "precio", p.precio)}
                               >
-                                ${p.precio.toFixed(2)}
+                                ${formatPrecio(p.precio)}
                               </span>
                             )}
                           </td>
@@ -905,7 +906,7 @@ export default function ProductosPage() {
                       Mostrando {productosFiltrados.length} de {productos.length} productos
                     </span>
                     <span className="font-semibold text-gray-900 dark:text-white">
-                      Valor visible: ${productosFiltrados.reduce((acc, p) => acc + p.precio * p.stock, 0).toFixed(2)}
+                      Valor visible: ${formatPrecio(productosFiltrados.reduce((acc, p) => acc + p.precio * p.stock, 0))}
                     </span>
                   </div>
                 </div>
@@ -965,11 +966,11 @@ export default function ProductosPage() {
                         <div>
                           <div className="flex items-center gap-2 text-sm">
                             <span className="text-gray-500 dark:text-gray-400 line-through">
-                              ${parseFloat(h.precio_anterior as any).toFixed(2)}
+                              ${formatPrecio(parseFloat(h.precio_anterior as any))}
                             </span>
                             <span className="text-gray-400">→</span>
                             <span className={`font-bold ${subio ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                              ${parseFloat(h.precio_nuevo as any).toFixed(2)}
+                              ${formatPrecio(parseFloat(h.precio_nuevo as any))}
                             </span>
                             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${subio ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
                               {subio ? "▲" : "▼"} {Math.abs(((h.precio_nuevo - h.precio_anterior) / h.precio_anterior) * 100).toFixed(1)}%

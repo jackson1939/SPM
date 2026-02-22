@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import * as XLSX from "xlsx";
+import { formatPrecio } from "../utils/formatPrecio";
 import {
   FaArrowLeft,
   FaChartLine,
@@ -407,7 +408,7 @@ export default function ReportesPage() {
                       </div>
                       <div>
                         <p className="text-sm opacity-90">{labelPeriodo}</p>
-                        <p className="text-3xl font-bold">${totalPeriodoActivo.toFixed(2)}</p>
+                        <p className="text-3xl font-bold">${formatPrecio(totalPeriodoActivo)}</p>
                       </div>
                     </div>
                     {periodoSeleccionado === "dia" && (
@@ -458,8 +459,8 @@ export default function ReportesPage() {
                         <p className="text-3xl font-bold">
                           $
                           {ventasPeriodo.length > 0
-                            ? (totalPeriodoActivo / ventasPeriodo.length).toFixed(2)
-                            : "0.00"}
+                            ? formatPrecio(totalPeriodoActivo / ventasPeriodo.length)
+                            : "0,00"}
                         </p>
                       </div>
                     </div>
@@ -474,7 +475,7 @@ export default function ReportesPage() {
                       </div>
                       <div>
                         <p className="text-sm opacity-90">Total Histórico</p>
-                        <p className="text-3xl font-bold">${totalHistorico.toFixed(2)}</p>
+                        <p className="text-3xl font-bold">${formatPrecio(totalHistorico)}</p>
                       </div>
                     </div>
                     <p className="text-sm opacity-75">{ventasRaw.length} registros en total</p>
@@ -524,7 +525,7 @@ export default function ReportesPage() {
                                     <div>
                                       <p className="font-semibold text-gray-900 dark:text-white">{producto}</p>
                                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        ${datos.total.toFixed(2)} en ventas
+                                        ${formatPrecio(datos.total)} en ventas
                                       </p>
                                     </div>
                                   </div>
@@ -600,7 +601,7 @@ export default function ReportesPage() {
                                     </p>
                                   </div>
                                   <p className="text-lg font-bold text-gray-900 dark:text-white">
-                                    ${totalDia.toFixed(2)}
+                                    ${formatPrecio(totalDia)}
                                   </p>
                                 </div>
                                 <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -650,11 +651,11 @@ export default function ReportesPage() {
                               <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{v.producto}</td>
                               <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{v.cantidad}</td>
                               <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
-                                ${v.precio_unitario.toFixed(2)}
+                                ${formatPrecio(v.precio_unitario)}
                               </td>
                               <td className="px-6 py-4">
                                 <span className="font-semibold text-gray-900 dark:text-white">
-                                  ${v.total.toFixed(2)}
+                                  ${formatPrecio(v.total)}
                                 </span>
                               </td>
                             </tr>

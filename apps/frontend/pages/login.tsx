@@ -1,26 +1,80 @@
 // apps/frontend/pages/login.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { FaUser, FaLock, FaUserTie, FaWarehouse, FaCashRegister, FaSignInAlt } from "react-icons/fa";
+import { FaUser, FaLock, FaUserTie, FaWarehouse, FaCashRegister, FaSignInAlt, FaSun, FaMoon } from "react-icons/fa";
+
+// Usuarios de prueba predefinidos (en producción esto vendría de la BD)
+const USUARIOS = [
+  { username: "jefe",    password: "jefe123",    role: "jefe",    nombre: "Administrador" },
+  { username: "almacen", password: "almacen123", role: "almacen", nombre: "Encargado Almacén" },
+  { username: "cajero",  password: "cajero123",  role: "cajero",  nombre: "Cajero" },
+  { username: "admin",   password: "admin123",   role: "jefe",    nombre: "Admin" },
+];
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("cajero");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    const isDark = saved === "dark";
+    setDarkMode(isDark);
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    if (next) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
-    // Simulación de validación
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // Pequeña demora para simular validación
+    await new Promise((resolve) => setTimeout(resolve, 600));
 
-    // Guardamos el rol en localStorage
-    localStorage.setItem("role", role);
-    
+    // Buscar el usuario en la lista
+    const usuario = USUARIOS.find(
+      (u) => u.username.toLowerCase() === username.trim().toLowerCase() && u.password === password
+    );
+
+    if (!usuario) {
+      setError("Usuario o contraseña incorrectos. Verifica tus credenciales.");
+      setLoading(false);
+      return;
+    }
+
+    // Guardar rol y nombre en localStorage
+    localStorage.setItem("role", usuario.role);
+
+    // Si hay una config, actualizar el username visible
+    try {
+      const raw = localStorage.getItem("spm_config");
+      const cfg = raw ? JSON.parse(raw) : {};
+      if (!cfg.username || cfg.username === "Administrador") {
+        cfg.username = usuario.nombre;
+        localStorage.setItem("spm_config", JSON.stringify(cfg));
+      }
+    } catch {}
+
     setLoading(false);
     router.push("/dashboard");
   };
@@ -49,14 +103,29 @@ export default function LoginPage() {
     },
   ];
 
-  const selectedRole = roles.find((r) => r.value === role);
+
 
   return (
     <>
       <Head>
         <title>Login - VEROKAI POS</title>
       </Head>
-      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+      <main className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 transition-colors duration-300">
+        {/* Toggle tema */}
+        <div className="absolute top-4 right-4 z-10">
+          <button
+            onClick={toggleTheme}
+            className="p-3 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200"
+            title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          >
+            {darkMode ? (
+              <FaSun className="text-yellow-500 text-lg" />
+            ) : (
+              <FaMoon className="text-gray-700 text-lg" />
+            )}
+          </button>
+        </div>
+
         {/* Formas decorativas de fondo */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl"></div>
@@ -79,7 +148,42 @@ export default function LoginPage() {
 
           {/* Tarjeta de login */}
           <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl shadow-2xl rounded-3xl p-8 border border-gray-200 dark:border-gray-700 animate-fadeIn">
-            <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Error */}
+            {error && (
+              <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
+                <FaLock className="text-red-500 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                <p className="text-red-700 dark:text-red-300 text-sm font-medium">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Tarjetas de roles informativos */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Usuarios de prueba</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {roles.map((r) => {
+                    const Icon = r.icon;
+                    return (
+                      <button
+                        key={r.value}
+                        type="button"
+                        onClick={() => {
+                          const u = USUARIOS.find((u) => u.role === r.value);
+                          if (u) { setUsername(u.username); setPassword(u.password); setError(null); }
+                        }}
+                        className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 text-left"
+                      >
+                        <div className={`inline-flex p-2 rounded-lg bg-gradient-to-r ${r.color} mb-2`}>
+                          <Icon className="text-white text-sm" />
+                        </div>
+                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 leading-tight">{r.label}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{r.value}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Usuario */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -92,9 +196,10 @@ export default function LoginPage() {
                   <input
                     type="text"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => { setUsername(e.target.value); setError(null); }}
                     className="w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 shadow-sm"
-                    placeholder="Ingrese su usuario"
+                    placeholder="jefe / almacen / cajero"
+                    autoComplete="username"
                     required
                   />
                 </div>
@@ -112,76 +217,12 @@ export default function LoginPage() {
                   <input
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); setError(null); }}
                     className="w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 shadow-sm"
                     placeholder="********"
+                    autoComplete="current-password"
                     required
                   />
-                </div>
-              </div>
-
-              {/* Selección de rol */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  Rol de Usuario
-                </label>
-                <div className="space-y-2">
-                  {roles.map((r) => {
-                    const Icon = r.icon;
-                    const isSelected = role === r.value;
-                    
-                    return (
-                      <button
-                        key={r.value}
-                        type="button"
-                        onClick={() => setRole(r.value)}
-                        className={`w-full p-4 rounded-xl border-2 transition-all duration-200 text-left ${
-                          isSelected
-                            ? "border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-md"
-                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-gray-50 dark:bg-gray-700/50"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`p-3 rounded-lg bg-gradient-to-r ${r.color} ${
-                              isSelected ? "shadow-lg" : "opacity-60"
-                            }`}
-                          >
-                            <Icon className="text-white text-xl" />
-                          </div>
-                          <div className="flex-1">
-                            <p
-                              className={`font-semibold ${
-                                isSelected
-                                  ? "text-blue-700 dark:text-blue-400"
-                                  : "text-gray-700 dark:text-gray-300"
-                              }`}
-                            >
-                              {r.label}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {r.description}
-                            </p>
-                          </div>
-                          {isSelected && (
-                            <div className="w-5 h-5 rounded-full bg-blue-500 dark:bg-blue-400 flex items-center justify-center">
-                              <svg
-                                className="w-3 h-3 text-white"
-                                fill="none"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="3"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path d="M5 13l4 4L19 7"></path>
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
 
@@ -189,11 +230,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className={`w-full py-4 px-6 rounded-xl font-bold text-lg shadow-lg transition-all duration-200 ${
-                  selectedRole
-                    ? `bg-gradient-to-r ${selectedRole.color} hover:shadow-xl hover:scale-[1.02] text-white`
-                    : "bg-gray-400 dark:bg-gray-600 text-white"
-                } disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none`}
+                className="w-full py-4 px-6 rounded-xl font-bold text-lg shadow-lg transition-all duration-200 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 hover:shadow-xl hover:scale-[1.02] text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
                 {loading ? (
                   <div className="flex items-center justify-center gap-3">

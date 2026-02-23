@@ -78,12 +78,22 @@ export default function Layout({ children }: LayoutProps) {
     const nuevas: Notificacion[] = [];
 
     try {
+      // Leer umbral de stock bajo desde configuración
+      let umbral = 5;
+      try {
+        const cfgRaw = localStorage.getItem("spm_config");
+        if (cfgRaw) {
+          const cfg = JSON.parse(cfgRaw);
+          if (cfg.umbralStockBajo) umbral = Number(cfg.umbralStockBajo) || 5;
+        }
+      } catch {}
+
       // --- PRODUCTOS: alertas de stock ---
       const prodRes = await fetch("/api/productos").catch(() => null);
       if (prodRes?.ok) {
         const productos: any[] = await prodRes.json();
         const agotados = productos.filter((p) => Number(p.stock) === 0);
-        const stockBajo = productos.filter((p) => Number(p.stock) > 0 && Number(p.stock) <= 5);
+        const stockBajo = productos.filter((p) => Number(p.stock) > 0 && Number(p.stock) <= umbral);
 
         agotados.slice(0, 3).forEach((p) => {
           nuevas.push({
@@ -120,7 +130,7 @@ export default function Layout({ children }: LayoutProps) {
             id: genId(),
             tipo: "warning",
             titulo: "Más productos con stock bajo",
-            mensaje: `${stockBajo.length - 3} productos más con ≤5 unidades`,
+            mensaje: `${stockBajo.length - 3} productos más con ≤${umbral} unidades`,
             tiempo: new Date(),
           });
         }
@@ -131,11 +141,18 @@ export default function Layout({ children }: LayoutProps) {
         const ventasRes = await fetch("/api/ventas").catch(() => null);
         if (ventasRes?.ok) {
           const ventas: any[] = await ventasRes.json();
-          const hoyStr = new Date().toISOString().split("T")[0];
+          // Usar fecha LOCAL para que coincida con la zona horaria del usuario
+          const hoyD = new Date();
+          const hoyStr = `${hoyD.getFullYear()}-${String(hoyD.getMonth() + 1).padStart(2, "0")}-${String(hoyD.getDate()).padStart(2, "0")}`;
 
           const ventasHoy = ventas.filter((v) => {
-            const fecha = (v.fecha ?? v.fecha_iso ?? "").split("T")[0];
-            return fecha === hoyStr;
+            const raw = v.fecha ?? v.fecha_iso ?? "";
+            if (!raw) return false;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw === hoyStr;
+            const d = new Date(raw);
+            if (isNaN(d.getTime())) return raw.split("T")[0] === hoyStr;
+            const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            return local === hoyStr;
           });
 
           const totalHoy = ventasHoy.reduce((acc, v) => acc + Number(v.total || 0), 0);

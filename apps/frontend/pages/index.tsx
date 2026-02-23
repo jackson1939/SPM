@@ -1,5 +1,5 @@
 // apps/frontend/pages/index.tsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import {
@@ -11,9 +11,37 @@ import {
   FaMobile,
   FaCloud,
   FaArrowRight,
+  FaSun,
+  FaMoon,
 } from "react-icons/fa";
 
 export default function Home() {
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Leer tema guardado
+    const saved = localStorage.getItem("theme");
+    const isDark = saved === "dark";
+    setDarkMode(isDark);
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    if (next) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
+
   const features = [
     {
       icon: FaBox,
@@ -59,11 +87,26 @@ export default function Home() {
         <title>SPM - Sistema de Punto de Venta</title>
         <meta name="description" content="Sistema modular de gestión de ventas e inventario" />
       </Head>
-      <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-300">
         {/* Formas decorativas de fondo */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2"></div>
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-purple-400/20 dark:bg-purple-600/10 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2"></div>
+        </div>
+
+        {/* Toggle tema */}
+        <div className="absolute top-4 right-4 z-10">
+          <button
+            onClick={toggleTheme}
+            className="p-3 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-all duration-200"
+            title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
+          >
+            {darkMode ? (
+              <FaSun className="text-yellow-500 text-xl" />
+            ) : (
+              <FaMoon className="text-gray-700 text-xl" />
+            )}
+          </button>
         </div>
 
         <div className="relative">

@@ -12,6 +12,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const migrations = [
     {
+      name: "Crear tabla ventas si no existe",
+      sql: `CREATE TABLE IF NOT EXISTS ventas (
+        id SERIAL PRIMARY KEY,
+        producto_id INTEGER,
+        cantidad INTEGER NOT NULL DEFAULT 1,
+        precio_unitario FLOAT DEFAULT 0,
+        total FLOAT NOT NULL DEFAULT 0,
+        metodo_pago VARCHAR(50) DEFAULT 'efectivo',
+        notas TEXT,
+        fecha TIMESTAMP DEFAULT NOW()
+      )`,
+    },
+    {
+      name: "Quitar NOT NULL de ventas.producto_id",
+      sql: "ALTER TABLE ventas ALTER COLUMN producto_id DROP NOT NULL",
+    },
+    {
+      name: "DEFAULT NOW() en ventas.fecha",
+      sql: "ALTER TABLE ventas ALTER COLUMN fecha SET DEFAULT NOW()",
+    },
+    {
+      name: "DEFAULT en ventas.metodo_pago",
+      sql: "ALTER TABLE ventas ALTER COLUMN metodo_pago SET DEFAULT 'efectivo'",
+    },
+    {
       name: "Agregar columna 'categoria' a productos",
       sql: "ALTER TABLE productos ADD COLUMN IF NOT EXISTS categoria VARCHAR(100)",
     },

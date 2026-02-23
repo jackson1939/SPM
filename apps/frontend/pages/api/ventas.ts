@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import getDbClient from "../../db";
 
-// Función auxiliar para intentar insertar venta con diferentes estructuras de tabla
+// Función auxiliar para insertar venta con fallbacks por columnas faltantes
 async function insertarVenta(
   db: any,
   producto_id: number | null,
@@ -12,6 +12,7 @@ async function insertarVenta(
   nombre?: string,
   notas?: string
 ): Promise<any> {
+  // Intentar con todas las columnas primero, luego reducir si alguna no existe
   const intentos = [
     {
       query: `INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, metodo_pago, notas, fecha)
@@ -34,8 +35,13 @@ async function insertarVenta(
       params: [producto_id, cantidad, precio_unitario, total]
     },
     {
-      query: `INSERT INTO ventas (cantidad, total)
-              VALUES ($1, $2) RETURNING *`,
+      // Mínimo absoluto con valores explícitos para columnas con DEFAULT NOW() que podrían ser NOT NULL
+      query: `INSERT INTO ventas (cantidad, precio_unitario, total, metodo_pago, fecha)
+              VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
+      params: [cantidad, precio_unitario, total, metodo_pago]
+    },
+    {
+      query: `INSERT INTO ventas (cantidad, total, fecha) VALUES ($1, $2, NOW()) RETURNING *`,
       params: [cantidad, total]
     }
   ];
@@ -44,12 +50,19 @@ async function insertarVenta(
   for (const intento of intentos) {
     try {
       const result = await db.query(intento.query, intento.params);
+      console.log(`✅ Venta insertada OK: ${total}`);
       return result;
     } catch (err: any) {
       lastError = err;
+      // Solo continuar si el error es por columna inexistente (42703)
       if (err.code === "42703") {
-        console.log(`Intento fallido (columna no existe): ${err.message}`);
+        console.log(`Columna faltante, probando siguiente intento: ${err.message}`);
         continue;
+      }
+      // Para cualquier otro error (NOT NULL, FK, etc.) también intentar el siguiente
+      console.error(`Error en intento de insert (${err.code}): ${err.message}`);
+      if (err.code === "23502" || err.code === "23503" || err.code === "23505") {
+        continue; // NOT NULL violation, FK violation, unique violation → probar siguiente
       }
       throw err;
     }

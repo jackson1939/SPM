@@ -58,8 +58,13 @@ export default function ProductosPage() {
   const [filterStock, setFilterStock] = useState<string>("todos");
   const [filterCategoria, setFilterCategoria] = useState<string>("todas");
 
-  // Confirmación de eliminación
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  // Stock threshold from config
+  const [umbral, setUmbral] = useState(5);
+
+  // Modal de confirmación de eliminación
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; id: number | null; nombre: string }>({
+    open: false, id: null, nombre: ""
+  });
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Edición inline
@@ -106,6 +111,14 @@ export default function ProductosPage() {
 
   useEffect(() => {
     fetchProductos();
+    // Leer umbral de stock bajo desde configuración
+    try {
+      const cfgRaw = localStorage.getItem("spm_config");
+      if (cfgRaw) {
+        const cfg = JSON.parse(cfgRaw);
+        if (cfg.umbralStockBajo) setUmbral(Number(cfg.umbralStockBajo) || 5);
+      }
+    } catch {}
   }, []);
 
   // Foco en el input de edición cuando se activa
@@ -181,7 +194,7 @@ export default function ProductosPage() {
       setError(err.message || "Error al eliminar producto");
     } finally {
       setDeletingId(null);
-      setConfirmDelete(null);
+      setDeleteModal({ open: false, id: null, nombre: "" });
     }
   };
 
@@ -299,7 +312,7 @@ export default function ProductosPage() {
       (producto.categoria ?? "").toLowerCase().includes(searchTerm.toLowerCase());
 
     let matchesStock = true;
-    if (filterStock === "bajo") matchesStock = producto.stock <= 5 && producto.stock > 0;
+    if (filterStock === "bajo") matchesStock = producto.stock <= umbral && producto.stock > 0;
     else if (filterStock === "agotado") matchesStock = producto.stock === 0;
 
     const matchesCategoria =
@@ -310,7 +323,7 @@ export default function ProductosPage() {
 
   // Estadísticas
   const totalProductos = productos.length;
-  const stockBajo = productos.filter((p) => p.stock <= 5 && p.stock > 0).length;
+  const stockBajo = productos.filter((p) => p.stock <= umbral && p.stock > 0).length;
   const agotados = productos.filter((p) => p.stock === 0).length;
   const valorInventario = productos.reduce((acc, p) => acc + p.precio * p.stock, 0);
 
@@ -322,7 +335,7 @@ export default function ProductosPage() {
           Agotado
         </span>
       );
-    } else if (stock <= 5) {
+    } else if (stock <= umbral) {
       return (
         <span className="flex items-center gap-1 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-medium">
           <FaExclamationTriangle />
@@ -457,10 +470,10 @@ export default function ProductosPage() {
                   <FaExclamationTriangle className="text-yellow-500 dark:text-yellow-400 text-xl flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <h3 className="font-bold text-yellow-800 dark:text-yellow-300 mb-2">
-                      Stock Bajo ({stockBajo}) — Menos de 6 unidades
+                      Stock Bajo ({stockBajo}) — {umbral} unidades o menos
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {productos.filter((p) => p.stock > 0 && p.stock <= 5).map((p) => (
+                      {productos.filter((p) => p.stock > 0 && p.stock <= umbral).map((p) => (
                         <div key={p.id} className="flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-yellow-200 dark:border-yellow-800">
                           <div>
                             <p className="font-medium text-gray-900 dark:text-white text-sm">{p.nombre}</p>
@@ -678,7 +691,7 @@ export default function ProductosPage() {
                       className="pl-10 pr-8 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 appearance-none cursor-pointer"
                     >
                       <option value="todos">Todos</option>
-                      <option value="bajo">Stock bajo (≤5)</option>
+                      <option value="bajo">Stock bajo (≤{umbral})</option>
                       <option value="agotado">Agotados</option>
                     </select>
                   </div>
@@ -856,39 +869,14 @@ export default function ProductosPage() {
                                 <FaEdit className="text-xs" />
                               </button>
 
-                              {/* Eliminar */}
-                              {confirmDelete === p.id ? (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs text-gray-600 dark:text-gray-400">¿Eliminar?</span>
-                                  <button
-                                    onClick={() => handleDeleteProducto(p.id)}
-                                    disabled={deletingId === p.id}
-                                    className="flex items-center gap-1 px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium transition-colors disabled:opacity-50"
-                                  >
-                                    {deletingId === p.id ? (
-                                      <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-                                    ) : (
-                                      <FaCheckCircle />
-                                    )}
-                                    Sí
-                                  </button>
-                                  <button
-                                    onClick={() => setConfirmDelete(null)}
-                                    className="flex items-center gap-1 px-2 py-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded text-xs font-medium transition-colors"
-                                  >
-                                    <FaTimes />
-                                    No
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => setConfirmDelete(p.id)}
-                                  className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 rounded-lg text-sm transition-colors"
-                                  title="Eliminar producto"
-                                >
-                                  <FaTrash className="text-xs" />
-                                </button>
-                              )}
+                              {/* Eliminar — abre modal */}
+                              <button
+                                onClick={() => setDeleteModal({ open: true, id: p.id, nombre: p.nombre })}
+                                className="p-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 rounded-lg text-sm transition-colors"
+                                title="Eliminar producto"
+                              >
+                                <FaTrash className="text-xs" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -915,6 +903,60 @@ export default function ProductosPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de confirmación de eliminación */}
+      {deleteModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDeleteModal({ open: false, id: null, nombre: "" })}
+          />
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-fadeIn">
+            <div className="p-6 bg-gradient-to-r from-red-500 to-red-700 text-white">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-white/20 rounded-xl">
+                  <FaTrash className="text-2xl" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Eliminar Producto</h3>
+                  <p className="text-sm opacity-80">Esta acción no se puede deshacer</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <p className="text-gray-700 dark:text-gray-300 mb-1">
+                ¿Estás seguro de que deseas eliminar:
+              </p>
+              <p className="font-bold text-gray-900 dark:text-white text-lg mb-5 truncate">
+                "{deleteModal.nombre}"
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteModal({ open: false, id: null, nombre: "" })}
+                  className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-all duration-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (deleteModal.id !== null) handleDeleteProducto(deleteModal.id);
+                    setDeleteModal({ open: false, id: null, nombre: "" });
+                  }}
+                  disabled={deletingId === deleteModal.id}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-md transition-all duration-200 disabled:opacity-50"
+                >
+                  {deletingId === deleteModal.id ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <FaTrash />
+                  )}
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Historial de Precios */}
       {historialModal.open && (

@@ -299,7 +299,13 @@ export default function VentasPage() {
 
       if (res.ok) {
         const data = await res.json();
-        console.log("Venta registrada:", data);
+
+        // Verificar si alguna venta no se guardó en la BD (fallback local)
+        const hayFallbackLocal = Array.isArray(data.ventas) && data.ventas.some((v: any) => v._local);
+        if (hayFallbackLocal || (data.errores && data.errores.length > 0)) {
+          console.warn("⚠️ Algunas ventas no se guardaron en la BD:", data.errores);
+          setError(`Advertencia: La venta se procesó pero hubo un error al guardar en la base de datos (${data.errores?.join(", ") || "error desconocido"}). Contacta al administrador.`);
+        }
 
         // Guardar datos del ticket antes de limpiar carrito
         setUltimaVenta({

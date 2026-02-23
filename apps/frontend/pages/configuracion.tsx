@@ -573,7 +573,7 @@ export default function ConfiguracionPage() {
                         className="w-24 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 dark:bg-gray-700 dark:text-white text-center text-lg font-bold transition-all duration-200"
                       />
                       <div className="flex gap-2 flex-wrap">
-                        {["$", "USD", "€", "£", "COP", "ARS", "MXN"].map((s) => (
+                        {["$", "CLP", "USD", "€", "£", "COP", "ARS", "MXN"].map((s) => (
                           <button
                             key={s}
                             onClick={() => setSimboloMoneda(s)}

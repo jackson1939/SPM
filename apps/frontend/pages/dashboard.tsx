@@ -85,8 +85,17 @@ export default function Dashboard() {
       if (productosRes.status === "fulfilled" && productosRes.value.ok) {
         const productos: any[] = await productosRes.value.json();
         productosTotal = productos.length;
+        // Leer umbral de stock bajo desde configuración
+        let umbral = 5;
+        try {
+          const cfgRaw = localStorage.getItem("spm_config");
+          if (cfgRaw) {
+            const cfg = JSON.parse(cfgRaw);
+            if (cfg.umbralStockBajo) umbral = Number(cfg.umbralStockBajo) || 5;
+          }
+        } catch {}
         stockBajo = productos.filter(
-          (p) => (Number(p.stock) || 0) <= 5
+          (p) => (Number(p.stock) || 0) <= umbral
         ).length;
       }
 

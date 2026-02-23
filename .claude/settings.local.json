@@ -1,7 +1,24 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(where:*)",
+      "Bash(git -C /c/SPM/apps/frontend log --oneline -10)",
+      "Bash(git -C \"C:/SPM/apps/frontend\" log --oneline -10)",
+      "Bash(git -C \"C:/SPM/apps/frontend\" status)",
+      "Bash(git -C \"C:/SPM/apps/frontend\" diff HEAD~1 HEAD -- lib/serverUsers.ts)",
+      "Bash(git -C \"C:/SPM/apps/frontend\" log --oneline -5)",
+      "Bash(git -C \"C:/SPM/apps/frontend\" diff HEAD~1 HEAD -- pages/login.tsx)",
+      "Bash(git -C \"C:/SPM/apps/frontend\" diff HEAD~2 HEAD -- lib/serverUsers.ts)",
+      "Bash(git -C \"C:/SPM/apps/frontend\" show HEAD --stat)",
+      "Bash(\"C:/Program Files/Git/cmd/git.exe\" -C \"C:/SPM/apps/frontend\" diff HEAD~2 HEAD --name-only)",
+      "Bash(\"C:/Program Files/Git/cmd/git.exe\" -C \"C:/SPM/apps/frontend\" log --oneline -10)",
+      "Bash(ls:*)",
+      "Bash(\"C:/Program Files/Git/cmd/git.exe\" -C \"C:/SPM\" status)",
+      "Bash(\"C:/Program Files/Git/cmd/git.exe\" -C \"C:/SPM\" add apps/frontend/lib/auth.ts apps/frontend/pages/_app.tsx)",
+      "Bash(\"C:/Program Files/Git/cmd/git.exe\" -C \"C:/SPM\" diff --cached)",
+      "Bash(\"C:/Program Files/Git/cmd/git.exe\":*)",
+      "Bash(\"C:/Program Files/Git/cmd/git.exe\" -C \"C:/SPM\" push origin main)"
     ]
   }
 }

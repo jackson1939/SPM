@@ -5,6 +5,8 @@ import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
 import { printTicket } from "../utils/printTicket";
 import { formatPrecio } from "../utils/formatPrecio";
+import { useRoleGuard } from "../hooks/useRoleGuard";
+import AccesoDenegado from "../components/AccesoDenegado";
 import {
   FaArrowLeft,
   FaShoppingCart,
@@ -56,6 +58,7 @@ function playErrorBeep() {
 }
 
 export default function VentasPage() {
+  const { authorized, loading: guardLoading } = useRoleGuard(["jefe", "cajero"]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [carrito, setCarrito] = useState<ItemCarrito[]>([]);
   const [codigo, setCodigo] = useState("");
@@ -383,6 +386,9 @@ export default function VentasPage() {
 
   const productosBajos = productos.filter((p) => p.stock <= 2 && p.stock > 0);
   const productosAgotados = productos.filter((p) => p.stock === 0);
+
+  if (guardLoading) return null;
+  if (!authorized) return <AccesoDenegado requiredRoles={["jefe", "cajero"]} />;
 
   return (
     <>

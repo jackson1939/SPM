@@ -4,6 +4,8 @@ import Head from "next/head";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import { formatPrecio } from "../utils/formatPrecio";
+import { useRoleGuard } from "../hooks/useRoleGuard";
+import AccesoDenegado from "../components/AccesoDenegado";
 import {
   FaArrowLeft,
   FaChartLine,
@@ -43,6 +45,7 @@ interface VentaDia {
 }
 
 export default function ReportesPage() {
+  const { authorized, loading: guardLoading } = useRoleGuard(["jefe"]);
   const [ventasRaw, setVentasRaw] = useState<VentaRaw[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -255,6 +258,9 @@ export default function ReportesPage() {
       : periodoSeleccionado === "semana"
       ? "Esta semana"
       : `${fechaDesde} — ${fechaHasta}`;
+
+  if (guardLoading) return null;
+  if (!authorized) return <AccesoDenegado requiredRoles={["jefe"]} />;
 
   return (
     <>

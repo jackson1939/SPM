@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import getDbClient from "../../db";
+import { requireAuth } from "../../lib/apiAuth";
+import { registrarAuditoria } from "../../lib/auditoria";
 
 // Cache del schema de ventas para no consultar information_schema en cada venta
 let ventasSchemaCache: { name: string; nullable: boolean; hasDefault: boolean }[] | null = null;
@@ -33,7 +35,8 @@ async function insertarVenta(
   total: number,
   metodo_pago: string,
   nombre?: string,
-  notas?: string
+  notas?: string,
+  vendedor_nombre?: string
 ): Promise<any> {
   // Valores disponibles (los que nuestra app puede proveer)
   const disponibles: Record<string, any> = {
@@ -43,6 +46,7 @@ async function insertarVenta(
     total: total,
     metodo_pago: metodo_pago,
     notas: notas || null,
+    vendedor_nombre: vendedor_nombre || null,
     // Columnas comunes que pueden existir y que seteamos a null/default
     usuario_id: null,
     cajero_id: null,
@@ -129,15 +133,19 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Todos los roles autenticados pueden acceder a ventas
+  const session = requireAuth(req, res);
+  if (!session) return;
+
   try {
     const db = getDbClient();
 
-    // GET: obtener todas las ventas con fecha y nombre de producto
+    // GET: obtener ventas — cajero solo ve las suyas; jefe y almacen ven todas
     if (req.method === "GET") {
       try {
-        // Query con JOIN para traer nombre del producto y fecha explícita
-        const result = await db.query(
-          `SELECT
+        // Cajero: filtrar por vendedor_nombre (si la columna existe)
+        const esCajero = session.role === "cajero";
+        let baseQuery = `SELECT
              v.id,
              v.producto_id,
              v.cantidad,
@@ -145,13 +153,19 @@ export default async function handler(
              v.total,
              v.metodo_pago,
              v.fecha,
-             -- Convertir fecha a ISO string para consistencia de zona horaria
              TO_CHAR(v.fecha AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS fecha_iso,
-             COALESCE(p.nombre, 'Producto eliminado') AS producto_nombre
+             COALESCE(p.nombre, 'Producto eliminado') AS producto_nombre,
+             v.vendedor_nombre
            FROM ventas v
-           LEFT JOIN productos p ON v.producto_id = p.id
-           ORDER BY v.fecha DESC, v.id DESC`
-        );
+           LEFT JOIN productos p ON v.producto_id = p.id`;
+        const params: any[] = [];
+        if (esCajero) {
+          baseQuery += ` WHERE v.vendedor_nombre = $1`;
+          params.push(session.username);
+        }
+        baseQuery += ` ORDER BY v.fecha DESC, v.id DESC`;
+
+        const result = await db.query(baseQuery, params);
         // Normalizar respuesta: usar fecha_iso como campo fecha
         const rows = result.rows.map((r: any) => ({
           ...r,
@@ -183,8 +197,11 @@ export default async function handler(
       }
     }
 
-    // POST: registrar una nueva venta
+    // POST: registrar una nueva venta (jefe y cajero)
     if (req.method === "POST") {
+      if (!["jefe", "cajero"].includes(session.role)) {
+        return res.status(403).json({ error: "Solo jefe o cajero pueden registrar ventas" });
+      }
       const { items, metodo_pago = "efectivo", monto_pagado, notas } = req.body;
 
       if (!items || !Array.isArray(items) || items.length === 0) {
@@ -239,7 +256,7 @@ export default async function handler(
 
           try {
             const ventaRes = await insertarVenta(
-              db, producto_id, cantidad, precio_unitario, subtotal, metodo_pago, productoNombre, notas
+              db, producto_id, cantidad, precio_unitario, subtotal, metodo_pago, productoNombre, notas, session.username
             );
             const ventaGuardada = ventaRes.rows[0];
             ventasRegistradas.push({
@@ -268,7 +285,7 @@ export default async function handler(
           // Producto manual — también intentar guardarlo en ventas
           try {
             const ventaRes = await insertarVenta(
-              db, null, cantidad, precio_unitario, subtotal, metodo_pago, productoNombre, notas
+              db, null, cantidad, precio_unitario, subtotal, metodo_pago, productoNombre, notas, session.username
             );
             const ventaGuardada = ventaRes.rows[0];
             ventasRegistradas.push({
@@ -293,6 +310,13 @@ export default async function handler(
           }
         }
       }
+
+      // Registrar en auditoría
+      await registrarAuditoria("venta_creada", session.username, session.role, "ventas", null, {
+        items: ventasRegistradas.length,
+        total: totalVenta,
+        metodo_pago,
+      });
 
       return res.status(201).json({
         success: true,

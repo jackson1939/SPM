@@ -17,6 +17,8 @@ import {
   FaSync,
 } from "react-icons/fa";
 import { formatPrecio } from "../utils/formatPrecio";
+import { useRoleGuard } from "../hooks/useRoleGuard";
+import AccesoDenegado from "../components/AccesoDenegado";
 
 interface DashboardStats {
   ventasHoy: number;
@@ -27,6 +29,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const { authorized, loading: guardLoading } = useRoleGuard(["jefe", "almacen", "cajero"]);
   const router = useRouter();
   const [role, setRole] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -512,6 +515,9 @@ export default function Dashboard() {
         );
     }
   };
+
+  if (guardLoading) return null;
+  if (!authorized) return <AccesoDenegado requiredRoles={["jefe", "almacen", "cajero"]} />;
 
   return (
     <>

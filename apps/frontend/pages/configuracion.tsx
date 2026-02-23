@@ -21,6 +21,8 @@ import {
   FaSignOutAlt,
   FaPrint,
 } from "react-icons/fa";
+import { useRoleGuard } from "../hooks/useRoleGuard";
+import AccesoDenegado from "../components/AccesoDenegado";
 
 interface SpmConfig {
   nombreTienda: string;
@@ -64,6 +66,7 @@ function saveConfig(cfg: SpmConfig) {
 }
 
 export default function ConfiguracionPage() {
+  const { authorized, loading: guardLoading } = useRoleGuard(["jefe"]);
   const [config, setConfig] = useState<SpmConfig>(DEFAULT_CONFIG);
   const [saved, setSaved] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("tienda");
@@ -172,6 +175,9 @@ export default function ConfiguracionPage() {
     { id: "cuenta", label: "Cuenta y Seguridad", icon: FaUser, color: "purple" },
     { id: "inventario", label: "Inventario y Moneda", icon: FaBox, color: "green" },
   ];
+
+  if (guardLoading) return null;
+  if (!authorized) return <AccesoDenegado requiredRoles={["jefe"]} />;
 
   return (
     <>

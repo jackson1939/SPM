@@ -4,6 +4,8 @@ import Head from "next/head";
 import Link from "next/link";
 import { exportToExcel } from "../utils/exportExcel";
 import { formatPrecio } from "../utils/formatPrecio";
+import { useRoleGuard } from "../hooks/useRoleGuard";
+import AccesoDenegado from "../components/AccesoDenegado";
 import {
   FaArrowLeft,
   FaPlus,
@@ -38,6 +40,7 @@ interface Compra {
 }
 
 export default function ComprasPage() {
+  const { authorized, loading: guardLoading } = useRoleGuard(["jefe", "almacen"]);
   // Estados para compras
   const [compras, setCompras] = useState<Compra[]>([]);
   const [producto, setProducto] = useState("");
@@ -482,6 +485,9 @@ export default function ComprasPage() {
         return "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400";
     }
   };
+
+  if (guardLoading) return null;
+  if (!authorized) return <AccesoDenegado requiredRoles={["jefe", "almacen"]} />;
 
   return (
     <>

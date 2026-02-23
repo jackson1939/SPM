@@ -1,11 +1,16 @@
 // /api/migrate — ejecutar una vez para agregar columnas y tablas nuevas
 import type { NextApiRequest, NextApiResponse } from "next";
 import getDbClient from "../../db";
+import { requireAuth } from "../../lib/apiAuth";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Método no permitido. Usa POST." });
   }
+
+  // Cualquier usuario autenticado puede ejecutar migraciones (son idempotentes)
+  const session = requireAuth(req, res);
+  if (!session) return;
 
   const db = getDbClient();
   const results: string[] = [];
@@ -71,6 +76,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     {
       name: "Índice en historial_precios.producto_id",
       sql: "CREATE INDEX IF NOT EXISTS idx_historial_precios_producto_id ON historial_precios(producto_id)",
+    },
+    {
+      name: "Agregar columna 'vendedor_nombre' a ventas",
+      sql: "ALTER TABLE ventas ADD COLUMN IF NOT EXISTS vendedor_nombre VARCHAR(50)",
+    },
+    {
+      name: "Crear tabla auditoria",
+      sql: `CREATE TABLE IF NOT EXISTS auditoria (
+        id SERIAL PRIMARY KEY,
+        accion VARCHAR(50) NOT NULL,
+        usuario VARCHAR(50) NOT NULL,
+        rol VARCHAR(20) NOT NULL,
+        entidad VARCHAR(50),
+        entidad_id INTEGER,
+        detalles JSONB,
+        fecha TIMESTAMP DEFAULT NOW()
+      )`,
+    },
+    {
+      name: "Índice en auditoria.usuario",
+      sql: "CREATE INDEX IF NOT EXISTS idx_auditoria_usuario ON auditoria(usuario)",
+    },
+    {
+      name: "Índice en auditoria.fecha",
+      sql: "CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(fecha)",
     },
   ];
 

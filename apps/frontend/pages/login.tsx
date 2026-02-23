@@ -4,13 +4,12 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { FaUser, FaLock, FaUserTie, FaWarehouse, FaCashRegister, FaSignInAlt, FaSun, FaMoon } from "react-icons/fa";
 
-// Usuarios de prueba predefinidos (en producción esto vendría de la BD)
-const USUARIOS = [
-  { username: "jefe",    password: "jefe123",    role: "jefe",    nombre: "Administrador" },
-  { username: "almacen", password: "almacen123", role: "almacen", nombre: "Encargado Almacén" },
-  { username: "cajero",  password: "cajero123",  role: "cajero",  nombre: "Cajero" },
-  { username: "admin",   password: "admin123",   role: "jefe",    nombre: "Admin" },
-];
+// Solo usernames para auto-completar el campo — la validación es siempre server-side
+const DEMO_USERNAMES: Record<string, string> = {
+  jefe: "jefe",
+  almacen: "almacen",
+  cajero: "cajero",
+};
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -48,35 +47,39 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    // Pequeña demora para simular validación
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    // Buscar el usuario en la lista
-    const usuario = USUARIOS.find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase() && u.password === password
-    );
-
-    if (!usuario) {
-      setError("Usuario o contraseña incorrectos. Verifica tus credenciales.");
-      setLoading(false);
-      return;
-    }
-
-    // Guardar rol y nombre en localStorage
-    localStorage.setItem("role", usuario.role);
-
-    // Si hay una config, actualizar el username visible
     try {
-      const raw = localStorage.getItem("spm_config");
-      const cfg = raw ? JSON.parse(raw) : {};
-      if (!cfg.username || cfg.username === "Administrador") {
-        cfg.username = usuario.nombre;
-        localStorage.setItem("spm_config", JSON.stringify(cfg));
-      }
-    } catch {}
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
 
-    setLoading(false);
-    router.push("/dashboard");
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Usuario o contraseña incorrectos.");
+        setLoading(false);
+        return;
+      }
+
+      // Guardar rol en localStorage solo para uso de UI (la sesión real es la cookie httpOnly)
+      localStorage.setItem("role", data.role);
+
+      // Actualizar nombre visible en la configuración
+      try {
+        const raw = localStorage.getItem("spm_config");
+        const cfg = raw ? JSON.parse(raw) : {};
+        if (!cfg.username || cfg.username === "Administrador") {
+          cfg.username = data.nombre;
+          localStorage.setItem("spm_config", JSON.stringify(cfg));
+        }
+      } catch {}
+
+      router.push("/dashboard");
+    } catch {
+      setError("Error de conexión. Intenta de nuevo.");
+      setLoading(false);
+    }
   };
 
   const roles = [
@@ -168,8 +171,8 @@ export default function LoginPage() {
                         key={r.value}
                         type="button"
                         onClick={() => {
-                          const u = USUARIOS.find((u) => u.role === r.value);
-                          if (u) { setUsername(u.username); setPassword(u.password); setError(null); }
+                          const u = DEMO_USERNAMES[r.value];
+                          if (u) { setUsername(u); setPassword(""); setError(null); }
                         }}
                         className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 text-left"
                       >

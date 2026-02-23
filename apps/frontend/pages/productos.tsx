@@ -4,6 +4,8 @@ import Head from "next/head";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import { formatPrecio } from "../utils/formatPrecio";
+import { useRoleGuard } from "../hooks/useRoleGuard";
+import AccesoDenegado from "../components/AccesoDenegado";
 import {
   FaArrowLeft,
   FaPlus,
@@ -42,6 +44,7 @@ interface HistorialPrecio {
 }
 
 export default function ProductosPage() {
+  const { authorized, loading: guardLoading } = useRoleGuard(["jefe", "almacen"]);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [nuevoProducto, setNuevoProducto] = useState({
     codigo_barras: "",
@@ -351,6 +354,9 @@ export default function ProductosPage() {
       );
     }
   };
+
+  if (guardLoading) return null;
+  if (!authorized) return <AccesoDenegado requiredRoles={["jefe", "almacen"]} />;
 
   return (
     <>

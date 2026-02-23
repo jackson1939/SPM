@@ -1,10 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import getDbClient from "../../db";
+import { requireAuth } from "../../lib/apiAuth";
+import { registrarAuditoria } from "../../lib/auditoria";
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Verificar autenticación — todos los roles pueden leer; solo jefe/almacen pueden escribir
+  const session = requireAuth(req, res);
+  if (!session) return;
+
   try {
     const db = getDbClient();
 
@@ -23,8 +29,11 @@ export default async function handler(
       return res.status(200).json(productosFormateados);
     }
 
-    // POST: crear nuevo producto
+    // POST: crear nuevo producto (jefe y almacen)
     if (req.method === "POST") {
+      if (!["jefe", "almacen"].includes(session.role)) {
+        return res.status(403).json({ error: "Solo jefe o almacén pueden crear productos" });
+      }
       const { codigo_barras, nombre, precio, stock, categoria } = req.body;
 
       if (!nombre || precio === undefined || precio === null) {
@@ -107,6 +116,7 @@ export default async function handler(
       }
 
       const producto = result.rows[0];
+      await registrarAuditoria("producto_creado", session.username, session.role, "productos", producto.id, { nombre: producto.nombre });
       return res.status(201).json({
         ...producto,
         precio: typeof producto.precio === "string" ? parseFloat(producto.precio) : producto.precio,
@@ -116,8 +126,11 @@ export default async function handler(
       });
     }
 
-    // PUT: actualizar producto por id (query param ?id=X)
+    // PUT: actualizar producto por id (jefe y almacen)
     if (req.method === "PUT") {
+      if (!["jefe", "almacen"].includes(session.role)) {
+        return res.status(403).json({ error: "Solo jefe o almacén pueden editar productos" });
+      }
       const { id } = req.query;
       if (!id) {
         return res.status(400).json({ error: "Se requiere el ID del producto" });
@@ -245,6 +258,7 @@ export default async function handler(
       }
 
       const p = result.rows[0];
+      await registrarAuditoria("producto_editado", session.username, session.role, "productos", idNum, { nombre: p.nombre });
       return res.status(200).json({
         ...p,
         precio: parseFloat(p.precio),
@@ -254,8 +268,11 @@ export default async function handler(
       });
     }
 
-    // DELETE: eliminar producto por id (query param)
+    // DELETE: eliminar producto (solo jefe)
     if (req.method === "DELETE") {
+      if (session.role !== "jefe") {
+        return res.status(403).json({ error: "Solo el jefe puede eliminar productos" });
+      }
       const { id } = req.query;
 
       if (!id) {
@@ -272,7 +289,9 @@ export default async function handler(
         return res.status(404).json({ error: "Producto no encontrado" });
       }
 
+      const delRow = await db.query("SELECT nombre FROM productos WHERE id = $1", [idNum]);
       await db.query("DELETE FROM productos WHERE id = $1", [idNum]);
+      await registrarAuditoria("producto_eliminado", session.username, session.role, "productos", idNum, { nombre: delRow.rows[0]?.nombre });
       return res.status(200).json({ success: true, message: "Producto eliminado correctamente" });
     }
 

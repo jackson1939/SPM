@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import getDbClient from "../../db";
+import { requireAuth } from "../../lib/apiAuth";
+import { registrarAuditoria } from "../../lib/auditoria";
 
 // Función auxiliar para intentar insertar compra con diferentes estructuras de tabla
 async function insertarCompra(
@@ -131,9 +133,13 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Solo jefe y almacén pueden gestionar compras
+  const session = requireAuth(req, res, ["jefe", "almacen"]);
+  if (!session) return;
+
   try {
     const db = getDbClient();
-    
+
     if (req.method === "GET") {
       // Primero intentar obtener la estructura de la tabla
       let query = `SELECT * FROM compras ORDER BY id DESC`;
@@ -447,6 +453,11 @@ export default async function handler(
       };
 
       console.log(`[API Compras POST] ✅ Devolviendo compra:`, compraConProducto);
+      await registrarAuditoria("compra_creada", session.username, session.role, "compras", compraConProducto.id, {
+        producto: compraConProducto.producto,
+        cantidad: compraConProducto.cantidad,
+        total: compraConProducto.total,
+      });
       return res.status(201).json(compraConProducto);
     }
 

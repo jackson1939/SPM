@@ -55,15 +55,18 @@ function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
 
   // Ejecutar migraciones automáticamente — versionar la clave para que nuevas migraciones corran
+  // Solo se ejecutan cuando el usuario está autenticado (páginas no públicas)
   useEffect(() => {
     const MIG_VERSION = "v6"; // Incrementar al agregar nuevas migraciones
     const key = `_spm_mig_${MIG_VERSION}`;
     if (typeof window !== "undefined" && !sessionStorage.getItem(key)) {
-      fetch("/api/migrate", { method: "POST" })
-        .then((r) => r.json())
-        .then((data) => {
+      fetch("/api/migrate", { method: "POST", credentials: "same-origin" })
+        .then(async (r) => {
+          if (r.status === 401) return; // Sin sesión — reintentar en la próxima carga de página
+          if (!r.ok) { console.error("Migration HTTP error:", r.status); return; }
+          const data = await r.json();
           console.log("Migraciones:", data.results);
-          sessionStorage.setItem(key, "1");
+          sessionStorage.setItem(key, "1"); // Solo marcar como hecho si tuvo éxito (2xx)
         })
         .catch((err) => console.error("Migration error:", err));
     }

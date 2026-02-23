@@ -92,17 +92,23 @@ export function getSessionFromRequest(req: {
 
 // ── Cookie helpers ────────────────────────────────────────────────────────────
 
+// En producción (Vercel / HTTPS) añadimos Secure para restringir la cookie a HTTPS
+const SECURE_FLAG =
+  process.env.NODE_ENV === "production" || process.env.VERCEL === "1"
+    ? "; Secure"
+    : "";
+
 export function setSessionCookie(res: NextApiResponse, token: string): void {
   const maxAge = Math.floor(SESSION_DURATION_MS / 1000);
   res.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}`
+    `${SESSION_COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${SECURE_FLAG}`
   );
 }
 
 export function clearSessionCookie(res: NextApiResponse): void {
   res.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`
+    `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${SECURE_FLAG}`
   );
 }

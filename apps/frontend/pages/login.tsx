@@ -28,6 +28,18 @@ export default function LoginPage() {
     } else {
       document.documentElement.classList.remove("dark");
     }
+
+    // Si ya hay sesión válida en el servidor, redirigir al dashboard
+    fetch("/api/auth/me", { credentials: "same-origin" })
+      .then((r) => {
+        if (r.ok) {
+          const redirect = (router.query.redirect as string) || "/dashboard";
+          const safePath = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard";
+          router.replace(safePath);
+        }
+      })
+      .catch(() => {}); // Sin sesión o error de red — mostrar login normalmente
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleTheme = () => {
@@ -69,13 +81,14 @@ export default function LoginPage() {
       try {
         const raw = localStorage.getItem("spm_config");
         const cfg = raw ? JSON.parse(raw) : {};
-        if (!cfg.username || cfg.username === "Administrador") {
-          cfg.username = data.nombre;
-          localStorage.setItem("spm_config", JSON.stringify(cfg));
-        }
+        cfg.username = data.nombre; // Siempre sincronizar nombre
+        localStorage.setItem("spm_config", JSON.stringify(cfg));
       } catch {}
 
-      router.push("/dashboard");
+      // Redirigir a la página original o al dashboard
+      const redirect = (router.query.redirect as string) || "/dashboard";
+      const safePath = redirect.startsWith("/") ? redirect : "/dashboard";
+      router.push(safePath);
     } catch {
       setError("Error de conexión. Intenta de nuevo.");
       setLoading(false);

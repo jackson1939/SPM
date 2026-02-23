@@ -2,11 +2,16 @@
 // SOLO PARA DESARROLLO — se puede eliminar en producción
 import type { NextApiRequest, NextApiResponse } from "next";
 import getDbClient from "../../db";
+import { requireAuth } from "../../lib/apiAuth";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Método no permitido. Usa GET." });
   }
+
+  // Solo jefe puede acceder al endpoint de diagnóstico
+  const session = requireAuth(req, res, ["jefe"]);
+  if (!session) return;
 
   const db = getDbClient();
 

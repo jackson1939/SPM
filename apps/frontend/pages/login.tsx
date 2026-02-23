@@ -4,11 +4,11 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { FaUser, FaLock, FaUserTie, FaWarehouse, FaCashRegister, FaSignInAlt, FaSun, FaMoon } from "react-icons/fa";
 
-// Solo usernames para auto-completar el campo — la validación es siempre server-side
-const DEMO_USERNAMES: Record<string, string> = {
-  jefe: "jefe",
-  almacen: "almacen",
-  cajero: "cajero",
+// Credenciales de acceso del sistema (la validación es siempre server-side)
+const DEMO_CREDENTIALS: Record<string, { username: string; password: string }> = {
+  jefe:    { username: "jefe",    password: "Verokai#Jefe26" },
+  almacen: { username: "almacen", password: "Verokai#Alma26" },
+  cajero:  { username: "cajero",  password: "Verokai#Caja26" },
 };
 
 export default function LoginPage() {
@@ -184,9 +184,10 @@ export default function LoginPage() {
                         key={r.value}
                         type="button"
                         onClick={() => {
-                          const u = DEMO_USERNAMES[r.value];
-                          if (u) { setUsername(u); setPassword(""); setError(null); }
+                          const cred = DEMO_CREDENTIALS[r.value];
+                          if (cred) { setUsername(cred.username); setPassword(cred.password); setError(null); }
                         }}
+                        title={`Usuario: ${r.value}`}
                         className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 text-left"
                       >
                         <div className={`inline-flex p-2 rounded-lg bg-gradient-to-r ${r.color} mb-2`}>

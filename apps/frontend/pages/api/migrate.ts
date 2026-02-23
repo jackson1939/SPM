@@ -29,6 +29,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       sql: "ALTER TABLE ventas ALTER COLUMN producto_id DROP NOT NULL",
     },
     {
+      name: "Quitar NOT NULL de ventas.usuario_id (si existe)",
+      sql: `DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'ventas' AND column_name = 'usuario_id'
+          ) THEN
+            ALTER TABLE ventas ALTER COLUMN usuario_id DROP NOT NULL;
+            ALTER TABLE ventas ALTER COLUMN usuario_id SET DEFAULT NULL;
+          END IF;
+        END
+      $$`,
+    },
+    {
       name: "DEFAULT NOW() en ventas.fecha",
       sql: "ALTER TABLE ventas ALTER COLUMN fecha SET DEFAULT NOW()",
     },

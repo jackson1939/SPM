@@ -1,7 +1,30 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import getDbClient from "../../db";
 
-// Función auxiliar para insertar venta con fallbacks por columnas faltantes
+// Cache del schema de ventas para no consultar information_schema en cada venta
+let ventasSchemaCache: { name: string; nullable: boolean; hasDefault: boolean }[] | null = null;
+
+// Obtiene el schema real de la tabla ventas desde la BD
+async function getVentasSchema(db: any): Promise<{ name: string; nullable: boolean; hasDefault: boolean }[]> {
+  if (ventasSchemaCache !== null) return ventasSchemaCache;
+  const result = await db.query(`
+    SELECT column_name, is_nullable, column_default
+    FROM information_schema.columns
+    WHERE table_name = 'ventas' AND table_schema = 'public'
+    ORDER BY ordinal_position
+  `);
+  const schema: { name: string; nullable: boolean; hasDefault: boolean }[] = result.rows.map((r: any) => ({
+    name: r.column_name as string,
+    nullable: r.is_nullable === "YES",
+    hasDefault: r.column_default !== null,
+  }));
+  ventasSchemaCache = schema;
+  console.log("Schema ventas:", schema.map((c) => `${c.name}(nullable=${c.nullable},default=${c.hasDefault})`).join(", "));
+  return schema;
+}
+
+// Insert dinámico basado en el schema real de la tabla
+// Incluye solo las columnas que podemos proveer; omite las que son nullable o tienen DEFAULT
 async function insertarVenta(
   db: any,
   producto_id: number | null,
@@ -12,62 +35,94 @@ async function insertarVenta(
   nombre?: string,
   notas?: string
 ): Promise<any> {
-  // Intentar con todas las columnas primero, luego reducir si alguna no existe
-  const intentos = [
-    {
-      query: `INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, metodo_pago, notas, fecha)
-              VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
-      params: [producto_id, cantidad, precio_unitario, total, metodo_pago, notas || null]
-    },
-    {
-      query: `INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, metodo_pago, fecha)
-              VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`,
-      params: [producto_id, cantidad, precio_unitario, total, metodo_pago]
-    },
-    {
-      query: `INSERT INTO ventas (producto_id, cantidad, precio_unitario, total, metodo_pago)
-              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      params: [producto_id, cantidad, precio_unitario, total, metodo_pago]
-    },
-    {
-      query: `INSERT INTO ventas (producto_id, cantidad, precio_unitario, total)
-              VALUES ($1, $2, $3, $4) RETURNING *`,
-      params: [producto_id, cantidad, precio_unitario, total]
-    },
-    {
-      // Mínimo absoluto con valores explícitos para columnas con DEFAULT NOW() que podrían ser NOT NULL
-      query: `INSERT INTO ventas (cantidad, precio_unitario, total, metodo_pago, fecha)
-              VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
-      params: [cantidad, precio_unitario, total, metodo_pago]
-    },
-    {
-      query: `INSERT INTO ventas (cantidad, total, fecha) VALUES ($1, $2, NOW()) RETURNING *`,
-      params: [cantidad, total]
-    }
-  ];
+  // Valores disponibles (los que nuestra app puede proveer)
+  const disponibles: Record<string, any> = {
+    producto_id: producto_id,
+    cantidad: cantidad,
+    precio_unitario: precio_unitario,
+    total: total,
+    metodo_pago: metodo_pago,
+    notas: notas || null,
+    // Columnas comunes que pueden existir y que seteamos a null/default
+    usuario_id: null,
+    cajero_id: null,
+    user_id: null,
+    vendedor_id: null,
+    sucursal_id: null,
+    caja_id: null,
+    turno_id: null,
+    descuento: 0,
+    impuesto: 0,
+    subtotal: total,
+    estado: "completada",
+  };
 
-  let lastError: any = null;
-  for (const intento of intentos) {
-    try {
-      const result = await db.query(intento.query, intento.params);
-      console.log(`✅ Venta insertada OK: ${total}`);
-      return result;
-    } catch (err: any) {
-      lastError = err;
-      // Solo continuar si el error es por columna inexistente (42703)
-      if (err.code === "42703") {
-        console.log(`Columna faltante, probando siguiente intento: ${err.message}`);
-        continue;
-      }
-      // Para cualquier otro error (NOT NULL, FK, etc.) también intentar el siguiente
-      console.error(`Error en intento de insert (${err.code}): ${err.message}`);
-      if (err.code === "23502" || err.code === "23503" || err.code === "23505") {
-        continue; // NOT NULL violation, FK violation, unique violation → probar siguiente
-      }
-      throw err;
-    }
+  let schema: { name: string; nullable: boolean; hasDefault: boolean }[];
+  try {
+    schema = await getVentasSchema(db);
+  } catch (schemaErr: any) {
+    console.error("No se pudo obtener schema de ventas:", schemaErr);
+    // Fallback: insert mínimo con las columnas más comunes
+    schema = [
+      { name: "producto_id", nullable: true, hasDefault: false },
+      { name: "cantidad", nullable: false, hasDefault: false },
+      { name: "precio_unitario", nullable: true, hasDefault: false },
+      { name: "total", nullable: false, hasDefault: false },
+      { name: "metodo_pago", nullable: true, hasDefault: true },
+      { name: "notas", nullable: true, hasDefault: true },
+      { name: "fecha", nullable: true, hasDefault: true },
+    ];
   }
-  throw lastError;
+
+  const colNames: string[] = [];
+  const colValues: string[] = [];
+  const params: any[] = [];
+
+  for (const col of schema) {
+    if (col.name === "id") continue; // SERIAL auto
+
+    // Columna 'fecha': usar NOW()
+    if (col.name === "fecha") {
+      colNames.push("fecha");
+      colValues.push("NOW()");
+      continue;
+    }
+
+    // Columna para la que tenemos un valor disponible
+    if (col.name in disponibles) {
+      colNames.push(col.name);
+      params.push(disponibles[col.name]);
+      colValues.push(`$${params.length}`);
+      continue;
+    }
+
+    // Columna desconocida: si tiene default o es nullable, la omitimos (usa el default/null)
+    if (col.hasDefault || col.nullable) {
+      continue; // No la incluimos, la BD usará su default o null
+    }
+
+    // Columna NOT NULL sin default que no tenemos → intentar con NULL y ver qué pasa
+    console.warn(`Columna requerida sin valor: ${col.name} — intentando con NULL`);
+    colNames.push(col.name);
+    params.push(null);
+    colValues.push(`$${params.length}`);
+  }
+
+  const query = `INSERT INTO ventas (${colNames.join(", ")}) VALUES (${colValues.join(", ")}) RETURNING *`;
+  console.log("INSERT ventas:", query.replace(/\s+/g, " "));
+  console.log("Params:", params);
+
+  // Invalidar cache si el insert falla por schema issues para que se vuelva a consultar
+  try {
+    const result = await db.query(query, params);
+    console.log(`✅ Venta guardada OK: total=${total}`);
+    return result;
+  } catch (err: any) {
+    console.error(`❌ Error en INSERT ventas (${err.code}): ${err.message}`);
+    // Invalidar cache para que la próxima vez consulte de nuevo
+    ventasSchemaCache = null;
+    throw err;
+  }
 }
 
 export default async function handler(

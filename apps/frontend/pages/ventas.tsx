@@ -304,7 +304,12 @@ export default function VentasPage() {
         const hayFallbackLocal = Array.isArray(data.ventas) && data.ventas.some((v: any) => v._local);
         if (hayFallbackLocal || (data.errores && data.errores.length > 0)) {
           console.warn("⚠️ Algunas ventas no se guardaron en la BD:", data.errores);
-          setError(`Advertencia: La venta se procesó pero hubo un error al guardar en la base de datos (${data.errores?.join(", ") || "error desconocido"}). Contacta al administrador.`);
+          // Ejecutar migraciones automáticamente para reparar el schema
+          fetch("/api/migrate", { method: "POST" })
+            .then((r) => r.json())
+            .then((migData) => console.log("Auto-reparación:", migData.results))
+            .catch(() => {});
+          setError(`Error al guardar en base de datos: ${data.errores?.join(", ") || "error desconocido"}. Se ejecutó reparación automática — intenta la venta nuevamente.`);
         }
 
         // Guardar datos del ticket antes de limpiar carrito

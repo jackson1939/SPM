@@ -20,6 +20,7 @@ import {
   FaInfoCircle,
   FaSignOutAlt,
   FaPrint,
+  FaTrash,
 } from "react-icons/fa";
 import { useRoleGuard } from "../hooks/useRoleGuard";
 import AccesoDenegado from "../components/AccesoDenegado";
@@ -91,6 +92,11 @@ export default function ConfiguracionPage() {
 
   // Rol
   const [role, setRole] = useState<string | null>(null);
+
+  // Borrar base de datos
+  const [confirmarBorrado, setConfirmarBorrado] = useState("");
+  const [borrandoDb, setBorrandoDb] = useState(false);
+  const [errorBorrado, setErrorBorrado] = useState<string | null>(null);
 
   useEffect(() => {
     const cfg = loadConfig();
@@ -170,10 +176,42 @@ export default function ConfiguracionPage() {
     }
   };
 
+  const handleBorrarBaseDatos = async () => {
+    if (confirmarBorrado !== "BORRAR TODO") {
+      setErrorBorrado("Escribe exactamente BORRAR TODO para confirmar.");
+      return;
+    }
+    if (!confirm("¿Estás seguro? Se eliminarán TODOS los productos, ventas, compras e historial. Esta acción no se puede deshacer.")) {
+      return;
+    }
+    setErrorBorrado(null);
+    setBorrandoDb(true);
+    try {
+      const res = await fetch("/api/admin/clear-database", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ confirmar: "BORRAR TODO" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Error al vaciar la base de datos");
+      }
+      setConfirmarBorrado("");
+      alert("Base de datos vaciada correctamente. Recarga la página para ver los cambios.");
+      window.location.reload();
+    } catch (err: any) {
+      setErrorBorrado(err.message || "Error al vaciar la base de datos");
+    } finally {
+      setBorrandoDb(false);
+    }
+  };
+
   const sections = [
     { id: "tienda", label: "Información de la Tienda", icon: FaStore, color: "blue" },
     { id: "cuenta", label: "Cuenta y Seguridad", icon: FaUser, color: "purple" },
     { id: "inventario", label: "Inventario y Moneda", icon: FaBox, color: "green" },
+    { id: "peligro", label: "Zona peligrosa", icon: FaTrash, color: "red" },
   ];
 
   if (guardLoading) return null;
@@ -655,6 +693,75 @@ export default function ConfiguracionPage() {
                     <FaSave />
                     Guardar Inventario y Moneda
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* ─── SECCIÓN: ZONA PELIGROSA ─── */}
+            {activeSection === "peligro" && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border-2 border-red-200 dark:border-red-900 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 border-b border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 bg-red-600 rounded-xl shadow-lg">
+                      <FaTrash className="text-white text-xl" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-red-800 dark:text-red-200">
+                        Zona peligrosa
+                      </h2>
+                      <p className="text-sm text-red-700 dark:text-red-300">
+                        Acciones irreversibles. Usar con precaución.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 space-y-5">
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                    <p className="text-sm text-red-800 dark:text-red-200 font-medium mb-2 flex items-center gap-2">
+                      <FaExclamationTriangle />
+                      Borrar toda la base de datos
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300 mb-4">
+                      Se eliminarán todos los productos, ventas, compras e historial de precios. Esta acción no se puede deshacer.
+                    </p>
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Escribe <span className="font-mono font-bold text-red-600 dark:text-red-400">BORRAR TODO</span> para confirmar:
+                      </label>
+                      <input
+                        type="text"
+                        value={confirmarBorrado}
+                        onChange={(e) => {
+                          setConfirmarBorrado(e.target.value);
+                          setErrorBorrado(null);
+                        }}
+                        placeholder="BORRAR TODO"
+                        className="w-full px-4 py-3 border border-red-300 dark:border-red-700 rounded-xl focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white font-mono placeholder-gray-400"
+                      />
+                      {errorBorrado && (
+                        <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
+                          <FaExclamationTriangle /> {errorBorrado}
+                        </p>
+                      )}
+                      <button
+                        onClick={handleBorrarBaseDatos}
+                        disabled={borrandoDb || confirmarBorrado !== "BORRAR TODO"}
+                        className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-3 px-4 rounded-xl font-semibold shadow-md transition-all duration-200"
+                      >
+                        {borrandoDb ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Vaciando base de datos...
+                          </>
+                        ) : (
+                          <>
+                            <FaTrash />
+                            Borrar toda la base de datos
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

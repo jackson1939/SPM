@@ -406,9 +406,9 @@ export default function Layout({ children }: LayoutProps) {
     <div className={`flex min-h-screen ${darkMode ? "dark" : ""}`}>
       <div className="flex min-h-screen w-full bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-all duration-300">
 
-        {/* Sidebar */}
+        {/* Sidebar — flex-shrink-0 para que en PC no robe espacio al contenido */}
         <aside
-          className={`${sidebarCollapsed ? "w-20" : "w-72"} bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 dark:from-gray-950 dark:via-black dark:to-gray-950 text-white flex flex-col shadow-2xl transition-all duration-300 relative border-r border-white/5`}
+          className={`${sidebarCollapsed ? "w-20" : "w-72"} flex-shrink-0 bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 dark:from-gray-950 dark:via-black dark:to-gray-950 text-white flex flex-col shadow-2xl transition-all duration-300 relative border-r border-white/5`}
         >
           {/* Header del Sidebar */}
           <div className="p-6 border-b border-white/10 relative">
@@ -530,7 +530,7 @@ export default function Layout({ children }: LayoutProps) {
         </aside>
 
         {/* Main Content — min-w-0 evita que en escritorio el flex no deje espacio al contenido */}
-        <div className="flex-1 flex flex-col min-h-screen min-w-0">
+        <div className="flex-1 flex flex-col min-h-screen min-w-0 overflow-hidden">
 
           {/* Header */}
           <header className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-40 transition-colors duration-300">

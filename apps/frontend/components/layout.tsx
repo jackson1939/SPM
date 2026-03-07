@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { formatPrecio } from "../utils/formatPrecio";
+import { useSessionTimeout } from "../hooks/useSessionTimeout";
 import {
   FaBell,
   FaBox,
@@ -68,6 +69,9 @@ export default function Layout({ children }: LayoutProps) {
   const globalSearchInputRef = useRef<HTMLInputElement>(null);
 
   const router = useRouter();
+
+  // Cierre de sesión automático tras 17 min de inactividad (excepto en login)
+  useSessionTimeout();
 
   // Genera un ID único para cada notificación
   const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;

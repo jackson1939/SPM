@@ -336,7 +336,7 @@ export default function ComprasPage() {
           "Producto": c.producto,
           "Cantidad": c.cantidad,
           "Costo Unitario": c.costo_unitario,
-          "Total": (c.cantidad * c.costo_unitario).toFixed(2),
+          "Total": Math.round(c.cantidad * c.costo_unitario),
           "Fecha": c.fecha
         }));
 
@@ -346,7 +346,7 @@ export default function ComprasPage() {
           "Producto": "TOTAL",
           "Cantidad": comprasData.reduce((acc: number, c: any) => acc + c.cantidad, 0),
           "Costo Unitario": "",
-          "Total": total.toFixed(2),
+          "Total": Math.round(total),
           "Fecha": ""
         });
 
@@ -763,12 +763,12 @@ export default function ComprasPage() {
                         <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">$</span>
                         <input
                           type="number"
-                          placeholder="0.00"
+                          placeholder="0"
                           value={precioVenta || ""}
-                          onChange={(e) => setPrecioVenta(parseFloat(e.target.value) || 0)}
+                          onChange={(e) => setPrecioVenta(Math.round(Number(e.target.value)) || 0)}
                           className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
                           min="0"
-                          step="0.01"
+                          step="1"
                         />
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -801,13 +801,13 @@ export default function ComprasPage() {
                     <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">$</span>
                     <input
                       type="number"
-                      placeholder="0.00"
+                      placeholder="0"
                       value={costo || ""}
-                      onChange={(e) => setCosto(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => setCosto(Math.round(Number(e.target.value)) || 0)}
                       className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
                       required
                       min="0"
-                      step="0.01"
+                      step="1"
                     />
                   </div>
                 </div>

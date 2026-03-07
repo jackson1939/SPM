@@ -22,15 +22,14 @@ function hashPassword(password: string, salt: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 // CREDENCIALES DEL SISTEMA
 // ─────────────────────────────────────────────────────────────────────────────
-//  jefe     →  Verokai#Jefe26
-//  almacen  →  Verokai#Alma26
-//  cajero   →  Verokai#Caja26
-//  admin    →  Verokai#Adm026
+//  jefe     →  M4rm4do13#
+//  almacen  →  S3b4st14n7681  (compras/almacén)
+//  cajero   →  kioskorojo1234
 // ─────────────────────────────────────────────────────────────────────────────
 const USERS: User[] = [
   {
     username: "jefe",
-    passwordHash: hashPassword("Verokai#Jefe26", "spm_salt_jefe_2026"),
+    passwordHash: hashPassword("M4rm4do13#", "spm_salt_jefe_2026"),
     salt: "spm_salt_jefe_2026",
     role: "jefe",
     nombre: "Administrador",
@@ -38,7 +37,7 @@ const USERS: User[] = [
   },
   {
     username: "almacen",
-    passwordHash: hashPassword("Verokai#Alma26", "spm_salt_almacen_2026"),
+    passwordHash: hashPassword("S3b4st14n7681", "spm_salt_almacen_2026"),
     salt: "spm_salt_almacen_2026",
     role: "almacen",
     nombre: "Encargado Almacén",
@@ -46,7 +45,7 @@ const USERS: User[] = [
   },
   {
     username: "cajero",
-    passwordHash: hashPassword("Verokai#Caja26", "spm_salt_cajero_2026"),
+    passwordHash: hashPassword("kioskorojo1234", "spm_salt_cajero_2026"),
     salt: "spm_salt_cajero_2026",
     role: "cajero",
     nombre: "Cajero",
@@ -54,7 +53,7 @@ const USERS: User[] = [
   },
   {
     username: "admin",
-    passwordHash: hashPassword("Verokai#Adm026", "spm_salt_admin_2026"),
+    passwordHash: hashPassword("M4rm4do13#", "spm_salt_admin_2026"),
     salt: "spm_salt_admin_2026",
     role: "jefe",
     nombre: "Admin",

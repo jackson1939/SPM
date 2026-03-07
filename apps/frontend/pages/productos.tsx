@@ -70,10 +70,13 @@ export default function ProductosPage() {
   });
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  // Edición inline
-  const [editingCell, setEditingCell] = useState<{ id: number; field: "precio" | "stock" } | null>(null);
+  // Edición inline (precio, stock, categoria)
+  const [editingCell, setEditingCell] = useState<{ id: number; field: "precio" | "stock" | "categoria" } | null>(null);
   const [editValue, setEditValue] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Notificación al escanear código ya existente
+  const [barcodeCheckMsg, setBarcodeCheckMsg] = useState<{ tipo: "info" | "warning"; texto: string } | null>(null);
 
   // Modal historial de precios
   const [historialModal, setHistorialModal] = useState<{
@@ -86,6 +89,7 @@ export default function ProductosPage() {
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+  const barcodeCheckTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchProductos = async () => {
     try {
@@ -99,7 +103,7 @@ export default function ProductosPage() {
       const data = await res.json();
       const productosFormateados = data.map((p: any) => ({
         ...p,
-        precio: typeof p.precio === "string" ? parseFloat(p.precio) : p.precio ?? 0,
+        precio: Math.round(Number(p.precio ?? 0)),
         stock: typeof p.stock === "string" ? parseInt(p.stock) : p.stock ?? 0,
         codigo_barras: p.codigo_barras ?? null,
         categoria: p.categoria ?? null,
@@ -130,6 +134,47 @@ export default function ProductosPage() {
       setTimeout(() => editInputRef.current?.focus(), 30);
     }
   }, [editingCell]);
+
+  // Comprobar si el código de barras ya existe (al escribir o escanear)
+  const checkBarcodeExists = useRef(async (codigo: string) => {
+    const c = codigo.trim();
+    if (!c) return;
+    try {
+      const res = await fetch(`/api/productos?codigo_barras=${encodeURIComponent(c)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const arr = Array.isArray(data) ? data : [];
+      if (arr.length > 0) {
+        const p = arr[0];
+        const nombre = p.nombre || "Producto";
+        const stock = p.stock != null ? Number(p.stock) : 0;
+        setBarcodeCheckMsg({
+          tipo: "info",
+          texto: `Producto ya en almacén: "${nombre}" — Stock: ${stock} unidad${stock === 1 ? "" : "es"}`,
+        });
+        setTimeout(() => setBarcodeCheckMsg(null), 6000);
+      } else {
+        setBarcodeCheckMsg(null);
+      }
+    } catch {
+      setBarcodeCheckMsg(null);
+    }
+  });
+
+  useEffect(() => {
+    if (barcodeCheckTimeoutRef.current) clearTimeout(barcodeCheckTimeoutRef.current);
+    const codigo = nuevoProducto.codigo_barras.trim();
+    if (!codigo) {
+      setBarcodeCheckMsg(null);
+      return;
+    }
+    barcodeCheckTimeoutRef.current = setTimeout(() => {
+      checkBarcodeExists.current(codigo);
+    }, 600);
+    return () => {
+      if (barcodeCheckTimeoutRef.current) clearTimeout(barcodeCheckTimeoutRef.current);
+    };
+  }, [nuevoProducto.codigo_barras]);
 
   const handleAddProducto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,14 +247,41 @@ export default function ProductosPage() {
   };
 
   // Iniciar edición inline
-  const startEdit = (id: number, field: "precio" | "stock", currentValue: number) => {
+  const startEdit = (id: number, field: "precio" | "stock" | "categoria", currentValue: number | string) => {
     setEditingCell({ id, field });
-    setEditValue(currentValue.toString());
+    setEditValue(typeof currentValue === "string" ? currentValue : currentValue.toString());
   };
 
   // Guardar edición inline
   const saveEdit = async () => {
     if (!editingCell) return;
+    if (editingCell.field === "categoria") {
+      const cat = editValue.trim();
+      setSavingEdit(true);
+      try {
+        const res = await fetch(`/api/productos?id=${editingCell.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ categoria: cat || null }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Error al actualizar");
+        }
+        const updated = await res.json();
+        setProductos((prev) =>
+          prev.map((p) => (p.id === editingCell.id ? { ...p, categoria: updated.categoria ?? null } : p))
+        );
+        setSuccess("Categoría actualizada");
+        setTimeout(() => setSuccess(null), 2000);
+      } catch (err: any) {
+        setError(err.message || "Error al actualizar");
+      } finally {
+        setSavingEdit(false);
+        setEditingCell(null);
+      }
+      return;
+    }
     const val = parseFloat(editValue);
     if (isNaN(val) || val < 0) {
       setEditingCell(null);
@@ -219,7 +291,7 @@ export default function ProductosPage() {
     setSavingEdit(true);
     try {
       const body: any = {};
-      if (editingCell.field === "precio") body.precio = val;
+      if (editingCell.field === "precio") body.precio = Math.round(val);
       if (editingCell.field === "stock") body.stock = Math.round(val);
 
       const res = await fetch(`/api/productos?id=${editingCell.id}`, {
@@ -273,10 +345,10 @@ export default function ProductosPage() {
       "Código de Barras": p.codigo_barras ?? "Sin código",
       Producto: p.nombre,
       Categoría: p.categoria ?? "Sin categoría",
-      "Precio ($)": p.precio.toFixed(2),
+      "Precio ($)": Math.round(p.precio),
       Stock: p.stock,
       Estado: p.stock === 0 ? "Agotado" : p.stock <= 5 ? "Stock Bajo" : "Normal",
-      "Valor en Stock ($)": (p.precio * p.stock).toFixed(2),
+      "Valor en Stock ($)": Math.round(p.precio * p.stock),
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(datos);
@@ -292,7 +364,7 @@ export default function ProductosPage() {
       { Métrica: "Total de Productos", Valor: totalProductos },
       { Métrica: "Productos con Stock Bajo", Valor: stockBajo },
       { Métrica: "Productos Agotados", Valor: agotados },
-      { Métrica: "Valor Total del Inventario ($)", Valor: valorInventario.toFixed(2) },
+      { Métrica: "Valor Total del Inventario ($)", Valor: Math.round(valorInventario) },
       { Métrica: "Fecha de exportación", Valor: new Date().toLocaleString("es-ES") },
     ];
     const wsResumen = XLSX.utils.json_to_sheet(resumen);
@@ -541,6 +613,12 @@ export default function ProductosPage() {
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 font-mono"
                     autoComplete="off"
                   />
+                  {barcodeCheckMsg && (
+                    <div className={`mt-2 px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${barcodeCheckMsg.tipo === "info" ? "bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800" : "bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800"}`}>
+                      <FaCheckCircle className="flex-shrink-0" />
+                      <span>{barcodeCheckMsg.texto}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -599,14 +677,14 @@ export default function ProductosPage() {
                     <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">$</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       min="0"
-                      placeholder="0.00"
+                      placeholder="0"
                       value={nuevoProducto.precio || ""}
                       onChange={(e) =>
                         setNuevoProducto({
                           ...nuevoProducto,
-                          precio: e.target.value === "" ? 0 : parseFloat(e.target.value) || 0,
+                          precio: e.target.value === "" ? 0 : Math.round(Number(e.target.value)) || 0,
                         })
                       }
                       className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200"
@@ -720,7 +798,7 @@ export default function ProductosPage() {
 
                 {/* Hint de edición inline */}
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
-                  Doble clic en Precio o Stock para editar directamente
+                  Doble clic en Precio, Stock o Categoría para editar directamente
                 </p>
               </div>
 
@@ -776,15 +854,38 @@ export default function ProductosPage() {
                           <td className="px-4 py-4">
                             <span className="font-medium text-gray-900 dark:text-white">{p.nombre}</span>
                           </td>
+                          {/* Categoría — edición inline */}
                           <td className="px-4 py-4 whitespace-nowrap">
-                            {p.categoria ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded text-xs font-medium">
-                                <FaTag className="text-xs" />
-                                {p.categoria}
-                              </span>
+                            {editingCell?.id === p.id && editingCell.field === "categoria" ? (
+                              <input
+                                ref={editInputRef}
+                                type="text"
+                                list="categorias-edit"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") saveEdit();
+                                  if (e.key === "Escape") setEditingCell(null);
+                                }}
+                                onBlur={saveEdit}
+                                disabled={savingEdit}
+                                className="w-32 px-2 py-1 border-2 border-blue-500 rounded text-sm dark:bg-gray-700 dark:text-white"
+                              />
                             ) : (
-                              <span className="text-gray-400 dark:text-gray-500 text-xs italic">—</span>
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded text-xs font-medium cursor-pointer hover:ring-2 hover:ring-indigo-400 transition-colors"
+                                title="Doble clic para editar categoría"
+                                onDoubleClick={() => startEdit(p.id, "categoria", p.categoria ?? "")}
+                              >
+                                <FaTag className="text-xs" />
+                                {p.categoria || "—"}
+                              </span>
                             )}
+                            <datalist id="categorias-edit">
+                              {categoriasUnicas.map((c) => (
+                                <option key={c} value={c} />
+                              ))}
+                            </datalist>
                           </td>
 
                           {/* Precio — edición inline */}
@@ -795,7 +896,7 @@ export default function ProductosPage() {
                                 <input
                                   ref={editInputRef}
                                   type="number"
-                                  step="0.01"
+                                  step="1"
                                   min="0"
                                   value={editValue}
                                   onChange={(e) => setEditValue(e.target.value)}
@@ -1014,11 +1115,11 @@ export default function ProductosPage() {
                         <div>
                           <div className="flex items-center gap-2 text-sm">
                             <span className="text-gray-500 dark:text-gray-400 line-through">
-                              ${formatPrecio(parseFloat(h.precio_anterior as any))}
+                              ${formatPrecio(Number(h.precio_anterior))}
                             </span>
                             <span className="text-gray-400">→</span>
                             <span className={`font-bold ${subio ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
-                              ${formatPrecio(parseFloat(h.precio_nuevo as any))}
+                              ${formatPrecio(Number(h.precio_nuevo))}
                             </span>
                             <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${subio ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"}`}>
                               {subio ? "▲" : "▼"} {Math.abs(((h.precio_nuevo - h.precio_anterior) / h.precio_anterior) * 100).toFixed(1)}%

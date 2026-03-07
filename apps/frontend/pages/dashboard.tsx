@@ -154,7 +154,7 @@ export default function Dashboard() {
           ID: p.id,
           "Código de Barras": p.codigo_barras ?? "Sin código",
           Producto: p.nombre,
-          "Precio ($)": Number(p.precio).toFixed(2),
+          "Precio ($)": Math.round(Number(p.precio)),
           Stock: Number(p.stock),
           Estado: Number(p.stock) === 0 ? "Agotado" : Number(p.stock) <= 5 ? "Stock Bajo" : "Normal",
         }));
@@ -170,7 +170,7 @@ export default function Dashboard() {
           Fecha: (v.fecha ?? "").split("T")[0],
           Producto: v.producto_nombre || `#${v.producto_id}`,
           Cantidad: Number(v.cantidad),
-          "Total ($)": Number(v.total).toFixed(2),
+          "Total ($)": Math.round(Number(v.total)),
           "Método Pago": v.metodo_pago || "efectivo",
         }));
         const ws = XLSX.utils.json_to_sheet(datosVentas);
@@ -185,8 +185,8 @@ export default function Dashboard() {
           Fecha: (c.fecha ?? "").split("T")[0],
           Producto: c.producto || c.nombre_producto || "Sin nombre",
           Cantidad: Number(c.cantidad),
-          "Costo Unit. ($)": Number(c.costo_unitario || c.costo || 0).toFixed(2),
-          "Total ($)": Number(c.total).toFixed(2),
+          "Costo Unit. ($)": Math.round(Number(c.costo_unitario || c.costo || 0)),
+          "Total ($)": Math.round(Number(c.total)),
           Estado: c.estado || "aprobada",
         }));
         const ws = XLSX.utils.json_to_sheet(datosCompras);
@@ -196,11 +196,11 @@ export default function Dashboard() {
 
       // Hoja de resumen
       const resumen = [
-        { Módulo: "Ventas hoy ($)", Valor: stats.ventasHoy.toFixed(2) },
-        { Módulo: "Ventas ayer ($)", Valor: stats.ventasAyer.toFixed(2) },
+        { Módulo: "Ventas hoy ($)", Valor: Math.round(stats.ventasHoy) },
+        { Módulo: "Ventas ayer ($)", Valor: Math.round(stats.ventasAyer) },
         { Módulo: "Total productos", Valor: stats.productosTotal },
         { Módulo: "Productos con stock bajo/agotado", Valor: stats.stockBajo },
-        { Módulo: "Compras del mes ($)", Valor: stats.comprasMes.toFixed(2) },
+        { Módulo: "Compras del mes ($)", Valor: Math.round(stats.comprasMes) },
         { Módulo: "Fecha de exportación", Valor: new Date().toLocaleString("es-ES") },
       ];
       const wsResumen = XLSX.utils.json_to_sheet(resumen);

@@ -57,7 +57,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   // Ejecutar migraciones automáticamente — versionar la clave para que nuevas migraciones corran
   // Solo se ejecutan cuando el usuario está autenticado (páginas no públicas)
   useEffect(() => {
-    const MIG_VERSION = "v6"; // Incrementar al agregar nuevas migraciones
+    const MIG_VERSION = "v7"; // Incrementar al agregar nuevas migraciones
     const key = `_spm_mig_${MIG_VERSION}`;
     if (typeof window !== "undefined" && !sessionStorage.getItem(key)) {
       fetch("/api/migrate", { method: "POST", credentials: "same-origin" })

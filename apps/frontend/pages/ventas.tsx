@@ -596,11 +596,11 @@ export default function VentasPage() {
                           <span className="absolute left-3 top-2.5 text-gray-500">$</span>
                           <input
                             type="number"
-                            step="0.01"
+                            step="1"
                             min="0"
-                            placeholder="0.00"
+                            placeholder="0"
                             value={productoManual.precio || ""}
-                            onChange={(e) => setProductoManual({ ...productoManual, precio: parseFloat(e.target.value) || 0 })}
+                            onChange={(e) => setProductoManual({ ...productoManual, precio: Math.round(Number(e.target.value)) || 0 })}
                             className="w-full pl-8 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 dark:bg-gray-700 dark:text-white"
                           />
                         </div>
@@ -648,11 +648,11 @@ export default function VentasPage() {
                     <span className="absolute left-4 top-3 text-gray-500 dark:text-gray-400">$</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       min="0"
-                      placeholder="0.00"
+                      placeholder="0"
                       value={pago || ""}
-                      onChange={(e) => setPago(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => setPago(Math.round(Number(e.target.value)) || 0)}
                       className="w-full pl-8 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 text-lg font-semibold"
                     />
                   </div>

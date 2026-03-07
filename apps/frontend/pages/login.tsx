@@ -4,11 +4,11 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { FaUser, FaLock, FaUserTie, FaWarehouse, FaCashRegister, FaSignInAlt, FaSun, FaMoon } from "react-icons/fa";
 
-// Credenciales de acceso del sistema (la validación es siempre server-side)
-const DEMO_CREDENTIALS: Record<string, { username: string; password: string }> = {
-  jefe:    { username: "jefe",    password: "Verokai#Jefe26" },
-  almacen: { username: "almacen", password: "Verokai#Alma26" },
-  cajero:  { username: "cajero",  password: "Verokai#Caja26" },
+// Roles informativos (no rellenan usuario/contraseña por seguridad)
+const ROLES_INFO: Record<string, { username: string; label: string }> = {
+  jefe:    { username: "jefe",    label: "Jefe / Administrador" },
+  almacen: { username: "almacen", label: "Compras / Almacén" },
+  cajero:  { username: "cajero", label: "Cajero" },
 };
 
 export default function LoginPage() {
@@ -18,6 +18,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   const router = useRouter();
+
+  const isTimeout = typeof window !== "undefined" && router.query.timeout === "1";
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
@@ -164,6 +166,13 @@ export default function LoginPage() {
 
           {/* Tarjeta de login */}
           <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl shadow-2xl rounded-3xl p-8 border border-gray-200 dark:border-gray-700 animate-fadeIn">
+            {/* Sesión expirada por inactividad */}
+            {isTimeout && !error && (
+              <div className="mb-5 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start gap-3">
+                <FaLock className="text-amber-500 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <p className="text-amber-700 dark:text-amber-300 text-sm font-medium">Sesión cerrada por inactividad (más de 17 min). Inicia sesión de nuevo.</p>
+              </div>
+            )}
             {/* Error */}
             {error && (
               <div className="mb-5 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
@@ -173,29 +182,25 @@ export default function LoginPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Tarjetas de roles informativos */}
+              {/* Tarjetas de roles informativos (no rellenan credenciales) */}
               <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Usuarios de prueba</p>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Roles del sistema</p>
                 <div className="grid grid-cols-3 gap-2">
                   {roles.map((r) => {
                     const Icon = r.icon;
+                    const info = ROLES_INFO[r.value];
                     return (
-                      <button
+                      <div
                         key={r.value}
-                        type="button"
-                        onClick={() => {
-                          const cred = DEMO_CREDENTIALS[r.value];
-                          if (cred) { setUsername(cred.username); setPassword(cred.password); setError(null); }
-                        }}
-                        title={`Usuario: ${r.value}`}
-                        className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 text-left"
+                        title={`Usuario: ${info?.username ?? r.value}`}
+                        className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 text-left cursor-default"
                       >
                         <div className={`inline-flex p-2 rounded-lg bg-gradient-to-r ${r.color} mb-2`}>
                           <Icon className="text-white text-sm" />
                         </div>
                         <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 leading-tight">{r.label}</p>
-                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{r.value}</p>
-                      </button>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{info?.username ?? r.value}</p>
+                      </div>
                     );
                   })}
                 </div>
@@ -216,7 +221,7 @@ export default function LoginPage() {
                     onChange={(e) => { setUsername(e.target.value); setError(null); }}
                     className="w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 shadow-sm"
                     placeholder="jefe / almacen / cajero"
-                    autoComplete="username"
+                    autoComplete="off"
                     required
                   />
                 </div>
@@ -237,7 +242,7 @@ export default function LoginPage() {
                     onChange={(e) => { setPassword(e.target.value); setError(null); }}
                     className="w-full pl-12 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all duration-200 shadow-sm"
                     placeholder="********"
-                    autoComplete="current-password"
+                    autoComplete="off"
                     required
                   />
                 </div>

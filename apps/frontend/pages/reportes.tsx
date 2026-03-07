@@ -2,11 +2,10 @@
 import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
-import { GetServerSideProps } from "next";
 import * as XLSX from "xlsx";
 import { formatPrecio } from "../utils/formatPrecio";
 import AccesoDenegado from "../components/AccesoDenegado";
-import { getSessionFromRequest } from "../lib/auth";
+import { useRoleGuard } from "../hooks/useRoleGuard";
 import {
   FaArrowLeft,
   FaChartLine,
@@ -45,23 +44,8 @@ interface VentaDia {
   precio_unitario: number;
 }
 
-export type ReportesPageProps = {
-  serverAuth: { authorized: boolean; role: string } | null;
-};
-
-export const getServerSideProps: GetServerSideProps<ReportesPageProps> = async (context) => {
-  const session = getSessionFromRequest(context.req as { headers: { cookie?: string } });
-  if (!session) {
-    return { redirect: { destination: "/login?redirect=/reportes", permanent: false } };
-  }
-  if (session.role !== "jefe") {
-    return { redirect: { destination: "/dashboard", permanent: false } };
-  }
-  return { props: { serverAuth: { authorized: true, role: session.role } } };
-};
-
-export default function ReportesPage({ serverAuth }: ReportesPageProps) {
-  const authorized = serverAuth?.authorized ?? false;
+export default function ReportesPage() {
+  const { authorized, loading } = useRoleGuard(["jefe"]);
   const [ventasRaw, setVentasRaw] = useState<VentaRaw[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -275,6 +259,7 @@ export default function ReportesPage({ serverAuth }: ReportesPageProps) {
       ? "Esta semana"
       : `${fechaDesde} — ${fechaHasta}`;
 
+  if (loading) return null;
   if (!authorized) return <AccesoDenegado requiredRoles={["jefe"]} />;
 
   return (

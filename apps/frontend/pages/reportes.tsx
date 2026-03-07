@@ -194,8 +194,8 @@ export default function ReportesPage() {
       Fecha: getFechaLocal(v.fecha),
       Producto: v.producto_nombre || `Producto #${v.producto_id ?? "manual"}`,
       Cantidad: Number(v.cantidad),
-      "Precio Unit. ($)": Number(v.precio_unitario).toFixed(2),
-      "Total ($)": Number(v.total).toFixed(2),
+      "Precio Unit. ($)": Math.round(Number(v.precio_unitario)),
+      "Total ($)": Math.round(Number(v.total)),
       "Método de Pago": v.metodo_pago || "efectivo",
       Notas: v.notas || "",
     }));
@@ -217,12 +217,12 @@ export default function ReportesPage() {
 
     const resumen = [
       { Métrica: "Período", Valor: periodoLabel },
-      { Métrica: "Total Ventas ($)", Valor: totalPeriodo.toFixed(2) },
+      { Métrica: "Total Ventas ($)", Valor: Math.round(totalPeriodo) },
       { Métrica: "Unidades Vendidas", Valor: cantidadPeriodo },
       { Métrica: "Número de Transacciones", Valor: ventasExport.length },
       {
         Métrica: "Promedio por Transacción ($)",
-        Valor: ventasExport.length > 0 ? (totalPeriodo / ventasExport.length).toFixed(2) : "0.00",
+        Valor: ventasExport.length > 0 ? Math.round(totalPeriodo / ventasExport.length) : 0,
       },
       { Métrica: "Fecha de exportación", Valor: new Date().toLocaleString("es-ES") },
     ];
@@ -233,7 +233,7 @@ export default function ReportesPage() {
       Posición: i + 1,
       Producto: producto,
       "Unidades Vendidas": datos.cantidad,
-      "Total en Ventas ($)": datos.total.toFixed(2),
+      "Total en Ventas ($)": Math.round(datos.total),
     }));
     const wsRanking = XLSX.utils.json_to_sheet(datosRanking);
     wsRanking["!cols"] = [{ wch: 10 }, { wch: 30 }, { wch: 18 }, { wch: 20 }];

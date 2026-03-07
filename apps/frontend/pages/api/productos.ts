@@ -14,11 +14,35 @@ export default async function handler(
   try {
     const db = getDbClient();
 
-    // GET: obtener todos los productos
+    // GET: obtener todos los productos (o uno por codigo_barras)
     if (req.method === "GET") {
-      const result = await db.query(
-        "SELECT * FROM productos ORDER BY id ASC"
-      );
+      const { codigo_barras: codigoQuery } = req.query;
+      const codigoBarras = typeof codigoQuery === "string" && codigoQuery.trim() ? codigoQuery.trim() : null;
+
+      let result;
+      if (codigoBarras) {
+        try {
+          result = await db.query(
+            "SELECT * FROM productos WHERE codigo_barras = $1 AND (deleted_at IS NULL) ORDER BY id ASC",
+            [codigoBarras]
+          );
+        } catch (colErr: any) {
+          if (colErr.code === "42703") {
+            result = await db.query("SELECT * FROM productos WHERE codigo_barras = $1 ORDER BY id ASC", [codigoBarras]);
+          } else throw colErr;
+        }
+      } else {
+        try {
+          result = await db.query(
+            "SELECT * FROM productos WHERE (deleted_at IS NULL) ORDER BY id ASC"
+          );
+        } catch (colErr: any) {
+          if (colErr.code === "42703") {
+            result = await db.query("SELECT * FROM productos ORDER BY id ASC");
+          } else throw colErr;
+        }
+      }
+
       const productosFormateados = result.rows.map((p: any) => ({
         ...p,
         precio: typeof p.precio === "string" ? parseFloat(p.precio) : p.precio,
@@ -46,9 +70,9 @@ export default async function handler(
         return res.status(400).json({ error: "El nombre debe ser un texto válido" });
       }
 
-      const precioNum = parseFloat(precio);
+      const precioNum = Math.round(Number(precio));
       if (isNaN(precioNum) || precioNum < 0) {
-        return res.status(400).json({ error: "El precio debe ser un número positivo" });
+        return res.status(400).json({ error: "El precio debe ser un número entero positivo" });
       }
 
       const stockNum =
@@ -158,9 +182,9 @@ export default async function handler(
       let paramCount = 1;
 
       if (precio !== undefined) {
-        const precioNum = parseFloat(precio);
+        const precioNum = Math.round(Number(precio));
         if (isNaN(precioNum) || precioNum < 0) {
-          return res.status(400).json({ error: "El precio debe ser un número positivo" });
+          return res.status(400).json({ error: "El precio debe ser un número entero positivo" });
         }
         updates.push(`precio = $${paramCount++}`);
         values.push(precioNum);
@@ -284,15 +308,21 @@ export default async function handler(
         return res.status(400).json({ error: "ID inválido" });
       }
 
-      const existing = await db.query("SELECT id FROM productos WHERE id = $1", [idNum]);
+      const existing = await db.query("SELECT id, nombre FROM productos WHERE id = $1", [idNum]);
       if (existing.rows.length === 0) {
         return res.status(404).json({ error: "Producto no encontrado" });
       }
 
-      const delRow = await db.query("SELECT nombre FROM productos WHERE id = $1", [idNum]);
-      await db.query("DELETE FROM productos WHERE id = $1", [idNum]);
-      await registrarAuditoria("producto_eliminado", session.username, session.role, "productos", idNum, { nombre: delRow.rows[0]?.nombre });
-      return res.status(200).json({ success: true, message: "Producto eliminado correctamente" });
+      const delRow = existing.rows[0];
+      try {
+        await db.query("UPDATE productos SET deleted_at = NOW() WHERE id = $1", [idNum]);
+      } catch (softErr: any) {
+        if (softErr.code === "42703") {
+          await db.query("DELETE FROM productos WHERE id = $1", [idNum]);
+        } else throw softErr;
+      }
+      await registrarAuditoria("producto_eliminado", session.username, session.role, "productos", idNum, { nombre: delRow?.nombre });
+      return res.status(200).json({ success: true, message: "Producto eliminado correctamente (ya no aparece en almacén; se mantiene en reportes)" });
     }
 
     return res.status(405).json({ error: "Método no permitido" });

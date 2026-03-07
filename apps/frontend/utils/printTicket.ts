@@ -33,8 +33,8 @@ export function printTicket(data: TicketData) {
       <tr>
         <td style="padding:2px 4px">${item.nombre}</td>
         <td style="padding:2px 4px;text-align:center">${item.cantidad}</td>
-        <td style="padding:2px 4px;text-align:right">$${item.precio.toFixed(2)}</td>
-        <td style="padding:2px 4px;text-align:right">$${(item.precio * item.cantidad).toFixed(2)}</td>
+        <td style="padding:2px 4px;text-align:right">$${Math.round(item.precio)}</td>
+        <td style="padding:2px 4px;text-align:right">$${Math.round(item.precio * item.cantidad)}</td>
       </tr>`
     )
     .join("");
@@ -123,15 +123,15 @@ export function printTicket(data: TicketData) {
   <div class="totals">
     <div class="row total-row">
       <span>TOTAL</span>
-      <span>$${data.total.toFixed(2)}</span>
+      <span>$${Math.round(data.total)}</span>
     </div>
     <div class="row">
       <span>Efectivo</span>
-      <span>$${data.pago.toFixed(2)}</span>
+      <span>$${Math.round(data.pago)}</span>
     </div>
     <div class="row vuelto-row">
       <span>Vuelto</span>
-      <span>$${data.vuelto.toFixed(2)}</span>
+      <span>$${Math.round(data.vuelto)}</span>
     </div>
   </div>
   ${

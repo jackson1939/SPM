@@ -102,6 +102,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       name: "Índice en auditoria.fecha",
       sql: "CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(fecha)",
     },
+    {
+      name: "Soft delete: agregar deleted_at a productos",
+      sql: "ALTER TABLE productos ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
+    },
   ];
 
   for (const migration of migrations) {

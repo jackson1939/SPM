@@ -427,9 +427,9 @@ export default function Layout({ children }: LayoutProps) {
                 <span className="text-2xl">{roleInfo.icon}</span>
               </div>
               {!sidebarCollapsed && (
-                <div className="animate-fadeIn">
+              <div className="animate-fadeIn">
                   <h2 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                    SPM
+                    KIOSKO ROJO
                   </h2>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xs text-white/60">Sistema POS</span>
@@ -513,7 +513,7 @@ export default function Layout({ children }: LayoutProps) {
                   </Link>
                 )}
                 <div className="text-xs text-white/40 text-center pt-2">
-                  <p>© 2026 VEROKAI</p>
+                  <p>© 2026 ALLDRIX FOUNDRY</p>
                   <p className="mt-0.5">v1.0.0</p>
                 </div>
               </div>

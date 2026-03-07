@@ -10,7 +10,8 @@ export type AccionAuditoria =
   | "producto_editado"
   | "producto_eliminado"
   | "config_actualizada"
-  | "migracion_ejecutada";
+  | "migracion_ejecutada"
+  | "clear_database";
 
 /**
  * Registra una acción en la tabla de auditoría.

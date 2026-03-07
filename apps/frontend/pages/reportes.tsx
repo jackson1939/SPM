@@ -45,7 +45,7 @@ interface VentaDia {
 }
 
 export default function ReportesPage() {
-  const { authorized, loading } = useRoleGuard(["jefe"]);
+  const { authorized, loading: guardLoading } = useRoleGuard(["jefe"]);
   const [ventasRaw, setVentasRaw] = useState<VentaRaw[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -259,7 +259,7 @@ export default function ReportesPage() {
       ? "Esta semana"
       : `${fechaDesde} — ${fechaHasta}`;
 
-  if (loading) return null;
+  if (guardLoading) return null;
   if (!authorized) return <AccesoDenegado requiredRoles={["jefe"]} />;
 
   return (

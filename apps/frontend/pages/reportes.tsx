@@ -2,10 +2,11 @@
 import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
+import { GetServerSideProps } from "next";
 import * as XLSX from "xlsx";
 import { formatPrecio } from "../utils/formatPrecio";
-import { useRoleGuard } from "../hooks/useRoleGuard";
 import AccesoDenegado from "../components/AccesoDenegado";
+import { getSessionFromRequest } from "../lib/auth";
 import {
   FaArrowLeft,
   FaChartLine,
@@ -44,8 +45,23 @@ interface VentaDia {
   precio_unitario: number;
 }
 
-export default function ReportesPage() {
-  const { authorized, loading: guardLoading } = useRoleGuard(["jefe"]);
+export type ReportesPageProps = {
+  serverAuth: { authorized: boolean; role: string } | null;
+};
+
+export const getServerSideProps: GetServerSideProps<ReportesPageProps> = async (context) => {
+  const session = getSessionFromRequest(context.req as { headers: { cookie?: string } });
+  if (!session) {
+    return { redirect: { destination: "/login?redirect=/reportes", permanent: false } };
+  }
+  if (session.role !== "jefe") {
+    return { redirect: { destination: "/dashboard", permanent: false } };
+  }
+  return { props: { serverAuth: { authorized: true, role: session.role } } };
+};
+
+export default function ReportesPage({ serverAuth }: ReportesPageProps) {
+  const authorized = serverAuth?.authorized ?? false;
   const [ventasRaw, setVentasRaw] = useState<VentaRaw[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -259,27 +275,7 @@ export default function ReportesPage() {
       ? "Esta semana"
       : `${fechaDesde} — ${fechaHasta}`;
 
-  if (!authorized && !guardLoading) return <AccesoDenegado requiredRoles={["jefe"]} />;
-
-  // Mientras se verifica el rol, mostrar la página con carga (así abre en PC y móvil)
-  if (guardLoading) {
-    return (
-      <>
-        <Head><title>Reportes - VEROKAI POS</title></Head>
-        <div className="w-full max-w-7xl mx-auto space-y-6 px-1">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Reportes y Análisis</h1>
-              <p className="text-gray-500 dark:text-gray-400 mt-1">Cargando...</p>
-            </div>
-          </div>
-          <div className="flex justify-center py-24">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          </div>
-        </div>
-      </>
-    );
-  }
+  if (!authorized) return <AccesoDenegado requiredRoles={["jefe"]} />;
 
   return (
     <>

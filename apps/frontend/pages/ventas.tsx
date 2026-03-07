@@ -393,7 +393,7 @@ export default function VentasPage() {
   return (
     <>
       <Head>
-        <title>Ventas - VEROKAI POS</title>
+        <title>Ventas - KIOSKO ROJO</title>
       </Head>
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
@@ -403,7 +403,7 @@ export default function VentasPage() {
               Punto de Venta
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">
-              Sistema POS para registro de ventas
+              Gestor De Almacen
             </p>
           </div>
           <Link href="/dashboard">

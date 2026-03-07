@@ -314,15 +314,20 @@ export default async function handler(
       }
 
       const delRow = existing.rows[0];
+      // Siempre soft delete: el producto deja de verse en Productos/Almacén pero sigue en reportes/ventas
       try {
         await db.query("UPDATE productos SET deleted_at = NOW() WHERE id = $1", [idNum]);
       } catch (softErr: any) {
         if (softErr.code === "42703") {
-          await db.query("DELETE FROM productos WHERE id = $1", [idNum]);
-        } else throw softErr;
+          // Columna deleted_at no existe: crearla y volver a intentar
+          await db.query("ALTER TABLE productos ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP");
+          await db.query("UPDATE productos SET deleted_at = NOW() WHERE id = $1", [idNum]);
+        } else {
+          throw softErr;
+        }
       }
       await registrarAuditoria("producto_eliminado", session.username, session.role, "productos", idNum, { nombre: delRow?.nombre });
-      return res.status(200).json({ success: true, message: "Producto eliminado correctamente (ya no aparece en almacén; se mantiene en reportes)" });
+      return res.status(200).json({ success: true, message: "Producto quitado del almacén. Sigue apareciendo en reportes y ventas." });
     }
 
     return res.status(405).json({ error: "Método no permitido" });

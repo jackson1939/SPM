@@ -84,7 +84,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>SPM - Sistema de Punto de Venta</title>
+        <title>KIOSKO ROJO - Gestor De Almacen</title>
         <meta name="description" content="Sistema modular de gestión de ventas e inventario" />
       </Head>
       <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-300">
@@ -122,13 +122,13 @@ export default function Home() {
               <h1 className="text-5xl md:text-7xl font-extrabold text-gray-900 dark:text-white mb-6 tracking-tight">
                 Bienvenido a{" "}
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
-                  SPM
+                  KIOSKO ROJO
                 </span>
               </h1>
 
               {/* Subtítulo */}
               <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto leading-relaxed">
-                Sistema modular profesional para gestión de{" "}
+                Sistema profesional para gestión de{" "}
                 <span className="font-semibold text-blue-600 dark:text-blue-400">
                   productos
                 </span>
@@ -243,11 +243,11 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <FaCloud className="text-blue-500 text-2xl" />
                 <span className="text-lg font-bold text-gray-900 dark:text-white">
-                  SPM
+                  KIOSKO ROJO
                 </span>
               </div>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                © 2026 VEROKAI. Todos los derechos reservados.
+                © 2026 ALLDRIX FOUNDRY. Todos los derechos reservados.
               </p>
               <div className="flex gap-4 text-sm text-gray-600 dark:text-gray-400">
                 <button className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">

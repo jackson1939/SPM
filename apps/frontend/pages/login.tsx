@@ -126,7 +126,7 @@ export default function LoginPage() {
   return (
     <>
       <Head>
-        <title>Login - VEROKAI POS</title>
+        <title>Login - KIOSKO ROJO</title>
       </Head>
       <main className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 transition-colors duration-300">
         {/* Toggle tema */}
@@ -157,10 +157,10 @@ export default function LoginPage() {
               <FaSignInAlt className="text-white text-4xl" />
             </div>
             <h1 className="text-4xl font-bold text-gray-800 dark:text-white mb-2">
-              VEROKAI POS
+              KIOSKO ROJO
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Sistema de Punto de Venta
+              Gestor De Almacen
             </p>
           </div>
 
@@ -271,7 +271,7 @@ export default function LoginPage() {
             {/* Footer */}
             <div className="mt-6 text-center">
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                © 2026 VEROKAI POS - Sistema de Punto de Venta
+                © 2026 ALLDRIX FOUNDRY - Gestor de Almacen
               </p>
             </div>
           </div>

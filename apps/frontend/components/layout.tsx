@@ -529,8 +529,8 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </aside>
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col min-h-screen">
+        {/* Main Content — min-w-0 evita que en escritorio el flex no deje espacio al contenido */}
+        <div className="flex-1 flex flex-col min-h-screen min-w-0">
 
           {/* Header */}
           <header className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl shadow-lg border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-40 transition-colors duration-300">
@@ -792,8 +792,8 @@ export default function Layout({ children }: LayoutProps) {
           </header>
 
           {/* Content Area */}
-          <main className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-            <div className="max-w-full mx-auto">{children}</div>
+          <main className="flex-1 p-6 overflow-y-auto overflow-x-auto custom-scrollbar min-h-0 min-w-0">
+            <div className="max-w-full mx-auto min-w-0">{children}</div>
           </main>
         </div>
       </div>

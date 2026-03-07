@@ -433,7 +433,7 @@ export default function ProductosPage() {
   return (
     <>
       <Head>
-        <title>Productos - VEROKAI POS</title>
+        <title>Productos - KIOSKO ROJO</title>
       </Head>
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}

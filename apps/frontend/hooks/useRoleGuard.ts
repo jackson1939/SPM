@@ -37,12 +37,8 @@ export function useRoleGuard(allowedRoles: AppRole[]): RoleGuardResult {
 
     const storedRole = localStorage.getItem("role") as AppRole | null;
 
-    if (!storedRole) {
-      router.replace("/login");
-      return;
-    }
-
-    // Verificar con el servidor que la cookie de sesión sea válida
+    // Siempre verificar primero con el servidor que la cookie de sesión sea válida.
+    // Esto permite que el usuario siga autenticado incluso si se borró el localStorage.
     fetch("/api/auth/me", { credentials: "same-origin" })
       .then(async (res) => {
         if (res.status === 401) {
@@ -61,7 +57,7 @@ export function useRoleGuard(allowedRoles: AppRole[]): RoleGuardResult {
         if (!data) return; // ya se redirigió a /login
 
         // El servidor es la fuente de verdad para el rol
-        const serverRole = (data.role ?? storedRole) as AppRole;
+        const serverRole = data.role as AppRole;
         if (serverRole !== storedRole) {
           localStorage.setItem("role", serverRole);
         }
@@ -71,6 +67,11 @@ export function useRoleGuard(allowedRoles: AppRole[]): RoleGuardResult {
       })
       .catch(() => {
         // Error de red / timeout — confiar en localStorage (soporte offline)
+        if (!storedRole) {
+          // Sin rol persistido y sin poder validar con el servidor → forzar login
+          router.replace("/login");
+          return;
+        }
         setRole(storedRole);
         setAuthorized((allowedRoles as string[]).includes(storedRole));
         setLoading(false);

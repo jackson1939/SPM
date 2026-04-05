@@ -85,14 +85,19 @@ Si configurar Root Directory causa problemas, puedes:
 
 #### Variables Requeridas:
 
-**`DATABASE_URL`** (Production, Preview, Development)
+**`DATABASE_URL`** (Production, Preview, Development) — pega la URL **pooled** desde el panel de Neon (no la subas al repositorio).
 ```
-postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+postgresql://USUARIO:CONTRASEÑA@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
 ```
 
 **`DATABASE_URL_UNPOOLED`** (Production, Preview, Development) - Opcional pero recomendado
 ```
-postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+postgresql://USUARIO:CONTRASEÑA@HOST.region.aws.neon.tech/neondb?sslmode=require
+```
+
+**`SESSION_SECRET`** (Production, Preview, Development) — cadena larga y aleatoria (firma de cookies de sesión). Obligatoria en Vercel.
+```
+(usa openssl rand -hex 32 o similar)
 ```
 
 ### Paso 2: Verificar que las Variables Estén Configuradas

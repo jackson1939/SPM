@@ -3,11 +3,19 @@
 import crypto from "crypto";
 import type { NextApiResponse } from "next";
 
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ??
-  "spm-fallback-dev-secret-change-in-production";
+/** En Vercel la app corre con sesiones reales; en build local NODE_ENV=production sin .env no debe romper el build. */
+const SESSION_SECRET_RAW = process.env.SESSION_SECRET?.trim();
 
-const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 horas
+if (process.env.VERCEL === "1" && !SESSION_SECRET_RAW) {
+  throw new Error(
+    "SESSION_SECRET es obligatoria en Vercel (Project Settings → Environment Variables)."
+  );
+}
+
+const SESSION_SECRET =
+  SESSION_SECRET_RAW ?? "spm-local-dev-only-do-not-use-in-production";
+
+const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 horas (el timeout de inactividad de 17 min protege Neon)
 export const SESSION_COOKIE_NAME = "spm_session";
 
 export interface SessionPayload {
@@ -102,13 +110,16 @@ export function setSessionCookie(res: NextApiResponse, token: string): void {
   const maxAge = Math.floor(SESSION_DURATION_MS / 1000);
   res.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${SECURE_FLAG}`
+    // SameSite=Lax: permite el envío de cookie en navegaciones GET (bookmarks, links, nueva pestaña)
+    // SameSite=Strict bloqueaba la cookie cuando el usuario abría /reportes directamente,
+    // causando redirect al login aunque la sesión fuera válida.
+    `${SESSION_COOKIE_NAME}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${SECURE_FLAG}`
   );
 }
 
 export function clearSessionCookie(res: NextApiResponse): void {
   res.setHeader(
     "Set-Cookie",
-    `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${SECURE_FLAG}`
+    `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${SECURE_FLAG}`
   );
 }

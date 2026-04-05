@@ -32,17 +32,14 @@ npm install
 
 **IMPORTANTE**: Antes de ejecutar la aplicación, debes configurar las variables de entorno.
 
-1. Crea el archivo `apps/frontend/.env.local` con:
+1. Crea el archivo `apps/frontend/.env.local` con tus URLs de Neon (copia desde el panel de Neon; no las subas al repo). Ejemplo de forma:
 ```env
-DATABASE_URL=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+DATABASE_URL=postgresql://USUARIO:CONTRASEÑA@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL_UNPOOLED=postgresql://USUARIO:CONTRASEÑA@HOST.region.aws.neon.tech/neondb?sslmode=require
+SESSION_SECRET=genera_una_cadena_larga_aleatoria
 ```
 
-2. Crea el archivo `packages/db/.env` con:
-```env
-DATABASE_URL=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
-```
+2. Crea el archivo `packages/db/.env` con las mismas URLs (pooler y directa) que uses para Prisma.
 
 3. Genera el cliente de Prisma y ejecuta las migraciones:
 ```bash

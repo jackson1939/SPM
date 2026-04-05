@@ -9,6 +9,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Método no permitido. Usa GET." });
   }
 
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ENABLE_DEBUG_VENTAS_API !== "1"
+  ) {
+    return res.status(404).end();
+  }
+
   // Solo jefe puede acceder al endpoint de diagnóstico
   const session = requireAuth(req, res, ["jefe"]);
   if (!session) return;

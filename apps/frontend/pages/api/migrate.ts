@@ -8,8 +8,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Método no permitido. Usa POST." });
   }
 
-  // Cualquier usuario autenticado puede ejecutar migraciones (son idempotentes)
-  const session = requireAuth(req, res);
+  // Solo jefe: las migraciones ejecutan DDL; no debe estar disponible para cajero/almacén.
+  const session = requireAuth(req, res, ["jefe"]);
   if (!session) return;
 
   const db = getDbClient();

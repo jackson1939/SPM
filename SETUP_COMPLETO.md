@@ -37,19 +37,20 @@
 
 **`apps/frontend/.env.local`**
 ```env
-DATABASE_URL=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+DATABASE_URL=postgresql://USUARIO:CONTRASEÑA@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL_UNPOOLED=postgresql://USUARIO:CONTRASEÑA@HOST.region.aws.neon.tech/neondb?sslmode=require
+SESSION_SECRET=una_cadena_larga_aleatoria
 ```
 
 **`packages/db/.env`**
 ```env
-DATABASE_URL=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+DATABASE_URL=postgresql://USUARIO:CONTRASEÑA@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
+DATABASE_URL_UNPOOLED=postgresql://USUARIO:CONTRASEÑA@HOST.region.aws.neon.tech/neondb?sslmode=require
 ```
 
 **`apps/backend/.env`** (opcional, si usas el backend Express separado)
 ```env
-DATABASE_URL=postgresql://neondb_owner:npg_2lQvIR8KzXqF@ep-little-hat-ai2d2p93-pooler.c-4.us-east-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require
+DATABASE_URL=postgresql://USUARIO:CONTRASEÑA@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
 PORT=4000
 FRONTEND_URL=http://localhost:3000
 ```

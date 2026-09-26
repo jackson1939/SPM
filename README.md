@@ -1,48 +1,253 @@
-# SPM — Sistema de Punto de Venta
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:B91C1C,100:7F1D1D&height=220&section=header&text=SPM&fontSize=70&fontColor=ffffff&animation=fadeIn&fontAlignY=36&desc=Sistema%20de%20Punto%20de%20Venta%20para%20Kiosco%20%2F%20Minimarket&descAlignY=58&descSize=20" width="100%" alt="SPM banner"/>
+</p>
 
-**Monorepo de un POS (Punto de Venta) full-stack para pequeños comercios — Next.js + Express + PostgreSQL (Neon), con roles, auditoría y despliegue en Vercel.**
+<p align="center">
+  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=21&duration=2800&pause=900&color=DC2626&center=true&vCenter=true&width=760&lines=POS+full-stack+para+kioscos+y+minimarkets;Inventario+%2B+Ventas+%2B+Compras+%2B+Auditor%C3%ADa;Auth+propia+con+HMAC-SHA256+%2B+RBAC+de+3+roles;Next.js+sobre+Neon+Postgres+%2B+backend+Express+opcional" alt="Typing SVG"/>
+</p>
 
-🌐 **Idioma / Language:** [Español](#español) | [English](#english)
+<p align="center">
+  <img src="https://img.shields.io/badge/frontend-Next.js_14-000000?style=for-the-badge&logo=nextdotjs&logoColor=white"/>
+  <img src="https://img.shields.io/badge/lenguaje-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white"/>
+  <img src="https://img.shields.io/badge/base_de_datos-Neon_Postgres-00E599?style=for-the-badge&logo=postgresql&logoColor=white"/>
+  <img src="https://img.shields.io/badge/ORM-Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white"/>
+  <img src="https://img.shields.io/badge/backend_opcional-Express-000000?style=for-the-badge&logo=express&logoColor=white"/>
+  <img src="https://img.shields.io/badge/despliegue-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white"/>
+  <img src="https://img.shields.io/badge/estado-MVP_avanzado-orange?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/visibilidad-privado-red?style=for-the-badge&logo=lock&logoColor=white"/>
+</p>
+
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=nextjs,react,ts,tailwind,nodejs,express,postgres,prisma,vercel&theme=dark" alt="stack icons"/>
+</p>
+
+<p align="center">
+  <a href="#español"><b>🇪🇸 Español</b></a> &nbsp;·&nbsp; <a href="#english"><b>🇬🇧 English</b></a>
+</p>
 
 ---
 
 <a name="español"></a>
+## 🇪🇸 Español
 
-## Español
+### 📑 Tabla de contenidos
 
-### 📖 Descripción general
+- [¿Qué es SPM?](#qué-es-spm)
+- [Arquitectura](#arquitectura)
+- [Flujo de una venta](#flujo-de-una-venta)
+- [Características principales](#características-principales)
+- [Modelo de datos](#modelo-de-datos)
+- [Stack tecnológico](#stack-tecnológico)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Seguridad y control de acceso](#seguridad-y-control-de-acceso)
+- [Estado del proyecto y roadmap](#estado-del-proyecto-y-roadmap)
+- [Licencia](#licencia)
+- [Autor](#autor)
 
-**SPM** (Sistema de Punto de Venta) es una aplicación de gestión comercial para negocios pequeños (tipo kiosco, minimarket o tienda de barrio): control de inventario, ventas en caja (POS), compras a proveedores, historial de precios, reportes y un panel de configuración. El proyecto está escrito casi en su totalidad en español (nombres de tablas, campos, textos de UI) y pensado para ser operado por personal no técnico, con distintos niveles de acceso según el rol de cada empleado.
+---
 
-Dentro del código se encuentran dos nombres comerciales usados como *branding* de la landing/página de bienvenida y de la configuración por defecto de la tienda: **"KIOSKO ROJO"** (página de inicio, atribuida a "ALLDRIX FOUNDRY") y **"VEROKAI POS"** (valor por defecto del nombre de tienda en `configuracion.tsx`). Esto sugiere que la base de código es una plantilla de POS reutilizada/reetiquetada para distintos clientes o marcas — patrón habitual cuando un mismo desarrollador mantiene varios repos de POS similares (por ejemplo, existe también el repositorio [`jackson1939/AXIS-SPM-SS`](https://github.com/jackson1939/AXIS-SPM-SS) del mismo autor, que por nombre y propósito parece emparentado con este proyecto; no se encontró en **este** repo ninguna referencia directa o dependencia cruzada explícita hacia él).
+### ¿Qué es SPM?
 
-**Nivel de madurez:** proyecto funcional en desarrollo activo / MVP avanzado. Tiene autenticación real, control de acceso por rol, auditoría, exportación a Excel, impresión de tickets y está desplegado en Vercel — pero el historial de git fue reducido a un único commit (`PARCHE DE SEGURIDAD 1`), lo que indica que se aplicó un parche de seguridad reciente (posible exposición previa de credenciales, ver `ENV_SETUP.md`) y que el repositorio no conserva su historial completo. No se encontraron pruebas automatizadas (`npm run test` existe como script pero no hay archivos de test en el repo).
+**SPM** (Sistema de Punto de Venta) es una aplicación de gestión comercial pensada para negocios pequeños — kioscos, minimarkets, tiendas de barrio — que necesitan controlar inventario, vender en caja, comprar a proveedores y auditar todo lo que pasa en el local, sin depender de una suite de ERP pesada ni de personal técnico para operarla.
 
-### ✨ Características principales
+Todo el dominio está modelado en español (tablas, campos, textos de UI): `productos`, `ventas`, `compras`, `historial_precios`, `auditoria`. La aplicación fue diseñada para que la use directamente el personal de mostrador, con permisos distintos según si la persona es dueño/administrador, encargado de almacén o cajero.
 
-- **Gestión de inventario (productos):** alta, edición, baja y consulta de productos con código de barras único, nombre, precio, stock, categoría y fecha de ingreso.
-- **Punto de venta (POS):** registro de ventas por producto y cantidad, métodos de pago, notas, cálculo de total, e impresión de tickets de venta (`utils/printTicket.ts`) con lógica de vuelto.
-- **Compras a proveedores:** registro de compras con costo unitario y actualización de stock (`pages/compras.tsx`, `pages/api/compras.ts`).
-- **Historial de precios:** cada cambio de precio de un producto queda registrado (modelo `HistorialPrecio`), permitiendo auditar variaciones de precio en el tiempo.
-- **Escaneo/búsqueda por código de barras:** página `scan.tsx` para localizar productos por su código.
-- **Reportes:** vistas de reportes de ventas e inventario (`pages/reportes.tsx`, `docs/api-spec.md` define además endpoints de reportes en el backend Express).
-- **Dashboard operativo:** ventas de hoy vs. ayer, total de productos, alertas de stock bajo y compras del mes, con exportación de datos a Excel (librería `xlsx`).
-- **Autenticación y sesiones propias (sin librerías externas de auth):**
-  - Login con usuario/contraseña, contraseñas almacenadas como **hash HMAC-SHA256 + salt** (nunca en texto plano), comparación en tiempo constante (`crypto.timingSafeEqual`) para mitigar *timing attacks*.
-  - Sesión firmada con HMAC en una cookie `HttpOnly`, `SameSite=Lax`, `Secure` en producción, con expiración de 12 horas.
-  - Usuarios adicionales configurables sin tocar código vía la variable de entorno `SPM_APP_USERS_JSON`.
-  - Cierre de sesión automático por inactividad (17 minutos) desde el cliente (`useSessionTimeout`), pensado para no agotar el pool de conexiones a Neon.
-- **Control de acceso basado en roles (RBAC):** tres roles — `jefe`, `almacen`, `cajero` — verificados tanto en el servidor (`middleware.ts`, `requireAuth`) como en el cliente (`useRoleGuard`, con *fallback* a `localStorage` si la red falla).
-- **Auditoría de acciones:** cada acción sensible (login, logout, venta creada, compra creada, producto creado/editado/eliminado, configuración actualizada, migración ejecutada, vaciado de base de datos) queda registrada en una tabla `auditoria`, de forma silenciosa (no interrumpe la operación principal si falla el registro).
-- **Panel de configuración:** nombre y datos de la tienda, símbolo de moneda, umbral de stock bajo, credenciales, impresora y pie de ticket configurables (`pages/configuracion.tsx`).
-- **Endpoint administrativo de borrado total:** `/api/admin/clear-database`, exclusivo del rol `jefe`, con confirmación explícita en el body (`"BORRAR TODO"`) — acción irreversible y auditada.
-- **Doble estrategia de acceso a base de datos según entorno:**
-  - En **Vercel/producción**, usa el driver serverless `@neondatabase/serverless` (HTTP, apto para funciones serverless).
-  - En **desarrollo local**, usa un `Pool` de `pg` tradicional (TCP), con *fallback* automático a Neon si el pool falla.
-- **Tema claro/oscuro** persistido en `localStorage` en la landing page.
-- **Backend Express independiente (opcional):** expone parte de la misma API (`productos`, `ventas`, `compras`, `reportes`) usando **Prisma ORM** en lugar de SQL crudo, útil como alternativa desacoplada de Vercel o para integraciones futuras.
+Dentro del propio código conviven **dos nombres comerciales**, algo que vale la pena documentar con honestidad porque es visible para cualquiera que abra el repo:
 
-### 🛠️ Stack tecnológico
+- **"KIOSKO ROJO"** — branding de la landing / página de bienvenida, atribuido a **"ALLDRIX FOUNDRY"**.
+- **"VEROKAI POS"** — nombre de tienda que viene por defecto en el panel de configuración (`configuracion.tsx`).
+
+Esto sugiere que la base de código funciona como una **plantilla de POS reutilizada y re-etiquetada** para distintos clientes o marcas — un patrón habitual cuando un mismo desarrollador mantiene varios repos de POS muy parecidos entre sí. De hecho existe también [`jackson1939/AXIS-SPM-SS`](https://github.com/jackson1939/AXIS-SPM-SS), del mismo autor, que por nombre y propósito parece emparentado con este proyecto — aunque no se encontró en **este** repositorio ninguna referencia directa o dependencia cruzada explícita hacia él.
+
+**Nivel de madurez:** proyecto funcional en desarrollo activo, más cerca de un **MVP avanzado** que de un prototipo. Tiene autenticación real, RBAC, auditoría, exportación a Excel, impresión de tickets y ya está desplegado en Vercel. Dicho esto, el historial de git del repositorio fue reducido a un único commit visible antes de este README (`PARCHE DE SEGURIDAD 1`), lo que indica que se aplicó un parche de seguridad reciente — probablemente por una exposición previa de credenciales — y que el historial completo del proyecto no se conserva. Tampoco se encontraron pruebas automatizadas: `npm run test` existe como script en `package.json`, pero no hay archivos de test en el repo.
+
+### Arquitectura
+
+SPM es, en realidad, **dos aplicaciones que comparten un mismo esquema de base de datos pero acceden a él por caminos distintos**: el frontend Next.js resuelve su propia API con SQL crudo contra `pg`/Neon, mientras que un backend Express independiente y opcional expone una API paralela usando Prisma. No hay una capa de servicio compartida entre ambos — son dos implementaciones de acceso a datos apuntando al mismo Postgres.
+
+```mermaid
+graph TB
+    subgraph Cliente["🧑‍💻 Cliente"]
+        Browser["Navegador<br/>(cajero / almacén / jefe)"]
+    end
+
+    subgraph Frontend["▲ apps/frontend — Next.js 14 (Pages Router)"]
+        Pages["Páginas<br/>POS · Dashboard · Compras · Reportes · Configuración"]
+        MW["middleware.ts<br/>(Edge Runtime — protección de rutas)"]
+        API["pages/api/*<br/>API Routes propias"]
+        Auth["lib/auth.ts · apiAuth.ts<br/>serverUsers.ts (HMAC-SHA256 + salt)"]
+        Audit["lib/auditoria.ts<br/>(logging silencioso)"]
+        DBSel["db/ — selector de driver"]
+    end
+
+    subgraph BackendOpt["🔧 apps/backend — Express (opcional)"]
+        Express["src/index.ts<br/>Bootstrap Express + CORS + health check"]
+        Routes["src/routes/<br/>productos · ventas (vía Prisma)"]
+    end
+
+    subgraph Packages["📦 packages/ — compartidos vía npm workspaces"]
+        PDB["@spm/db<br/>schema.prisma + cliente Prisma"]
+        PAuth["@spm/auth<br/>guards + estrategia JWT (placeholder)"]
+        PUtils["@spm/utils<br/>helpers y validadores"]
+    end
+
+    subgraph Datos["💾 PostgreSQL — Neon"]
+        Pooled[("Driver serverless<br/>@neondatabase/serverless<br/>(producción / Vercel)")]
+        Local[("Pool de `pg`<br/>(desarrollo local, TCP)")]
+        DB[("productos · ventas · compras<br/>historial_precios · auditoria")]
+    end
+
+    Browser --> MW --> Pages
+    Pages --> API
+    API --> Auth
+    API --> Audit
+    API --> DBSel
+    DBSel -->|producción| Pooled --> DB
+    DBSel -->|local, con fallback a Neon| Local --> DB
+
+    Express --> Routes --> PDB --> DB
+    PAuth -. usado por .- API
+    PUtils -. usado por .- API
+    PUtils -. usado por .- Routes
+
+    style Frontend fill:#B91C1C22,stroke:#B91C1C
+    style BackendOpt fill:#7F1D1D22,stroke:#7F1D1D
+    style Datos fill:#0f766e22,stroke:#0f766e
+    style Packages fill:#57534e22,stroke:#78716c
+```
+
+> **Nota clave:** el frontend no llama al backend Express, ni viceversa. Ambos son puntos de entrada independientes a la misma base de datos. El backend Express usa **Prisma** (`packages/db`) como capa de acceso; las API routes de Next.js usan **SQL crudo** con el driver que corresponda al entorno (`@neondatabase/serverless` en Vercel, `pg.Pool` con fallback a Neon en local). Mantener el esquema sincronizado entre ambas rutas de acceso es responsabilidad manual de quien modifique el modelo de datos.
+
+### Flujo de una venta
+
+El ciclo operativo típico de caja, de punta a punta:
+
+```mermaid
+sequenceDiagram
+    actor Cajero
+    participant UI as POS (Next.js)
+    participant MW as middleware.ts
+    participant API as /api/ventas
+    participant DB as Neon Postgres
+    participant Aud as auditoria
+
+    Cajero->>UI: Escanea / busca producto (código de barras)
+    UI->>API: GET /api/productos?codigo=...
+    API->>DB: SELECT en `productos`
+    DB-->>API: precio, stock, nombre
+    API-->>UI: Datos del producto
+    Cajero->>UI: Confirma cantidad, método de pago, total
+    UI->>MW: Request autenticado (cookie de sesión HMAC)
+    MW->>MW: Verifica rol (cajero / almacen / jefe)
+    MW->>API: POST /api/ventas
+    API->>DB: INSERT en `ventas` + UPDATE stock en `productos`
+    API->>Aud: Registra "venta creada" (silencioso, no bloqueante)
+    DB-->>API: OK
+    API-->>UI: Venta registrada
+    UI->>Cajero: Imprime ticket (printTicket.ts) + calcula vuelto
+```
+
+### Características principales
+
+**Gestión de inventario**
+- Alta, edición, baja y consulta de productos con **código de barras único**, nombre, precio, stock, categoría y fecha de ingreso.
+- **Historial de precios** (`HistorialPrecio`): cada cambio de precio queda registrado, permitiendo auditar variaciones en el tiempo.
+- Búsqueda / escaneo de productos por código de barras (`pages/scan.tsx`).
+
+**Punto de venta (POS) y compras**
+- Registro de ventas por producto y cantidad, métodos de pago, notas, cálculo automático de total y **vuelto**.
+- Impresión de tickets de venta (`utils/printTicket.ts`).
+- Registro de compras a proveedores con costo unitario y actualización automática de stock (`pages/compras.tsx`, `pages/api/compras.ts`).
+
+**Reportes y dashboard**
+- Vistas de reportes de ventas e inventario (`pages/reportes.tsx`); `docs/api-spec.md` documenta además endpoints de reportes en el backend Express.
+- Dashboard operativo: ventas de hoy vs. ayer, total de productos, alertas de stock bajo, compras del mes.
+- **Exportación a Excel** de los datos operativos (librería `xlsx` / SheetJS).
+
+**Autenticación y sesiones propias — sin librerías externas de auth**
+- Login usuario/contraseña con hash **HMAC-SHA256 + salt** (nunca texto plano) y comparación en tiempo constante (`crypto.timingSafeEqual`) para mitigar *timing attacks*.
+- Sesión firmada con HMAC en cookie `HttpOnly`, `SameSite=Lax`, `Secure` en producción, expiración de **12 horas**.
+- Usuarios adicionales configurables sin tocar código vía la variable `SPM_APP_USERS_JSON`.
+- Cierre de sesión automático por inactividad (**17 minutos**, `useSessionTimeout`), pensado explícitamente para no agotar el pool de conexiones de Neon.
+
+**Control de acceso basado en roles (RBAC)**
+- Tres roles — `jefe`, `almacen`, `cajero` — verificados **tanto en servidor** (`middleware.ts`, `requireAuth`) **como en cliente** (`useRoleGuard`, con *fallback* a `localStorage` si la red falla).
+
+**Auditoría de acciones**
+- Toda acción sensible (login, logout, venta creada, compra creada, producto creado/editado/eliminado, configuración actualizada, migración ejecutada, base de datos vaciada) se registra en la tabla `auditoria`, de forma silenciosa: si el registro de auditoría falla, la operación principal no se interrumpe.
+
+**Panel de configuración**
+- Nombre y datos de la tienda, símbolo de moneda, umbral de stock bajo, credenciales, impresora y pie de ticket, todo configurable desde `pages/configuracion.tsx`.
+
+**Endpoint administrativo de borrado total**
+- `/api/admin/clear-database`, exclusivo del rol `jefe`, requiere confirmación explícita en el body (`"BORRAR TODO"`) — acción irreversible y auditada.
+
+**Doble estrategia de base de datos según entorno**
+- En **Vercel/producción**: driver serverless `@neondatabase/serverless` (HTTP, apto para funciones serverless).
+- En **desarrollo local**: `Pool` tradicional de `pg` (TCP), con *fallback* automático a Neon si el pool falla.
+
+**Backend Express independiente (opcional)**
+- Expone parte de la misma API (`productos`, `ventas`, `compras`, `reportes`) usando **Prisma ORM** en lugar de SQL crudo — útil como alternativa desacoplada de Vercel o como base para integraciones futuras.
+
+**Detalles de UI**
+- Tema claro/oscuro persistido en `localStorage` en la landing page.
+
+### Modelo de datos
+
+Modelo real definido en `packages/db/prisma/schema.prisma`, más la tabla `auditoria`, que **no** está modelada en Prisma y se escribe con SQL crudo desde `lib/auditoria.ts`:
+
+```mermaid
+erDiagram
+    PRODUCTO {
+        int id PK
+        string codigo_barras UK
+        string nombre
+        float precio
+        int stock
+        string categoria
+        datetime fecha_ingreso
+    }
+    COMPRA {
+        int id PK
+        int producto_id FK
+        int cantidad
+        float costo_unitario
+        datetime fecha
+    }
+    VENTA {
+        int id PK
+        int producto_id FK
+        int cantidad
+        float precio_unitario
+        float total
+        string metodo_pago
+        string notas
+        datetime fecha
+    }
+    HISTORIAL_PRECIO {
+        int id PK
+        int producto_id FK
+        float precio_anterior
+        float precio_nuevo
+        datetime fecha
+    }
+    AUDITORIA {
+        int id PK
+        string accion
+        string usuario
+        string rol
+        datetime fecha
+        string detalle
+    }
+
+    PRODUCTO ||--o{ COMPRA : "recibe"
+    PRODUCTO ||--o{ VENTA : "se vende en"
+    PRODUCTO ||--o{ HISTORIAL_PRECIO : "registra cambios de"
+```
+
+> `HISTORIAL_PRECIO` tiene borrado en cascada respecto a `PRODUCTO`. `AUDITORIA` es una tabla independiente, sin relaciones formales en el esquema de Prisma — se popula por fuera del ORM, exclusivamente vía SQL crudo desde el backend Next.js.
+
+### Stack tecnológico
 
 | Categoría | Tecnología / Librería | Versión |
 |---|---|---|
@@ -64,225 +269,316 @@ Dentro del código se encuentran dos nombres comerciales usados como *branding* 
 | Gestor de monorepo | npm workspaces | npm ≥ 9 |
 | Despliegue | Vercel | — |
 
-> Nota: el hash de contraseñas del **login del frontend** (`serverUsers.ts`) usa `crypto.createHmac` nativo de Node, no `bcrypt` — `bcrypt` solo figura como dependencia del backend Express.
+> El hash de contraseñas del **login del frontend** (`serverUsers.ts`) usa `crypto.createHmac` nativo de Node, **no** `bcrypt` — `bcrypt` solo figura como dependencia del backend Express, que usa un mecanismo de auth distinto (placeholder JWT en `@spm/auth`).
 
-### 🏗️ Arquitectura y estructura de carpetas
+### Estructura del proyecto
 
-```
-SPM/
-├── apps/
-│   ├── frontend/                # Next.js 14 — aplicación principal (UI + API routes)
-│   │   ├── pages/                # Rutas de página (POS, dashboard, login, reportes, etc.)
-│   │   │   └── api/               # API routes: auth, productos, ventas, compras, admin, migrate
-│   │   ├── components/           # Componentes compartidos (Layout, AccesoDenegado)
-│   │   ├── hooks/                 # useRoleGuard (RBAC), useSessionTimeout (auto-logout)
-│   │   ├── lib/                   # auth.ts, apiAuth.ts, serverUsers.ts, auditoria.ts (server-only)
-│   │   ├── utils/                 # formatPrecio, printTicket, exportExcel
-│   │   ├── db/                    # Selector de driver de base de datos (pg vs Neon serverless)
-│   │   └── middleware.ts          # Protección de rutas a nivel de Edge Runtime
-│   └── backend/                  # Servidor Express independiente (opcional, usa Prisma)
-│       ├── src/index.ts           # Bootstrap de Express, CORS, logging, health check
-│       ├── src/routes/            # Rutas productos/ventas vía Prisma
-│       ├── pages/api/             # Variante de rutas (compras, productos, reportes, ventas)
-│       ├── db/                    # Config y esquema SQL de referencia
-│       └── scripts/                # migrate.js, test-connection.js
-├── packages/
-│   ├── db/                       # Paquete @spm/db — schema.prisma + cliente Prisma exportado
-│   ├── auth/                     # Paquete @spm/auth — estrategias (JWT placeholder) y guards
-│   └── utils/                    # Paquete @spm/utils — helpers y validadores compartidos
-├── docs/                         # Documentación técnica (arquitectura, API spec, roadmap, schema SQL de referencia)
-├── scripts/                      # Scripts SQL puntuales (fix-compras-table.sql)
-├── vercel.json                   # Configuración de build/deploy del monorepo en Vercel
-└── package.json                  # Orquestación de workspaces (npm)
-```
+```mermaid
+graph TD
+    Root["SPM/ (monorepo npm workspaces)"] --> Apps["apps/"]
+    Root --> Packages["packages/"]
+    Root --> Docs["docs/"]
+    Root --> Scripts["scripts/"]
+    Root --> Vercel["vercel.json"]
 
-**Modelo de datos (Prisma — `packages/db/prisma/schema.prisma`):**
+    Apps --> FE["frontend/ — Next.js 14"]
+    Apps --> BE["backend/ — Express (opcional)"]
 
-- `Producto` → tabla `productos` (código de barras único, nombre, precio, stock, categoría, fecha de ingreso; relaciones a compras, ventas e historial de precios).
-- `Compra` → tabla `compras` (producto, cantidad, costo unitario, fecha).
-- `Venta` → tabla `ventas` (producto, cantidad, precio unitario, total, método de pago, notas, fecha).
-- `HistorialPrecio` → tabla `historial_precios` (precio anterior/nuevo por producto, con borrado en cascada).
-- Tabla adicional `auditoria` (no modelada en Prisma, se escribe con SQL crudo desde `lib/auditoria.ts`).
+    FE --> FEPages["pages/<br/>POS · dashboard · login · reportes · compras · scan · configuracion"]
+    FEPages --> FEApi["pages/api/<br/>auth · productos · ventas · compras · admin · migrate"]
+    FE --> FEComp["components/<br/>Layout, AccesoDenegado"]
+    FE --> FEHooks["hooks/<br/>useRoleGuard · useSessionTimeout"]
+    FE --> FELib["lib/<br/>auth.ts · apiAuth.ts · serverUsers.ts · auditoria.ts"]
+    FE --> FEUtils["utils/<br/>formatPrecio · printTicket · exportExcel"]
+    FE --> FEDb["db/<br/>selector pg vs Neon serverless"]
+    FE --> FEMw["middleware.ts<br/>Edge Runtime"]
 
-**Nota importante sobre acceso a datos:** el frontend (`apps/frontend/pages/api/`) accede a la base de datos con **SQL crudo vía `pg`/Neon**, mientras que el backend Express (`apps/backend/src/routes/`) usa **Prisma**. Ambos apuntan al mismo esquema/base de datos, pero son dos capas de acceso independientes — hay que tenerlo en cuenta al modificar el esquema.
+    BE --> BESrc["src/index.ts<br/>bootstrap Express"]
+    BE --> BERoutes["src/routes/<br/>productos, ventas vía Prisma"]
+    BE --> BEApi["pages/api/<br/>variante compras/productos/reportes/ventas"]
+    BE --> BEDb["db/<br/>config + esquema SQL de referencia"]
+    BE --> BEScripts["scripts/<br/>migrate.js · test-connection.js"]
 
-### ✅ Requisitos previos
+    Packages --> PDb["db/ — @spm/db<br/>schema.prisma + cliente Prisma"]
+    Packages --> PAuth["auth/ — @spm/auth<br/>strategies (JWT placeholder) + guards"]
+    Packages --> PUtils["utils/ — @spm/utils<br/>helpers + validadores"]
 
-- Node.js ≥ 18.0.0
-- npm ≥ 9.0.0
-- Una base de datos PostgreSQL — el proyecto está diseñado específicamente para **[Neon](https://neon.tech)** (usa su driver serverless en producción), aunque cualquier PostgreSQL compatible funcionaría en desarrollo local vía `pg`.
+    Docs --> DArch["arquitectura.md"]
+    Docs --> DApi["api-spec.md"]
+    Docs --> DRoad["roadmap.md"]
+    Docs --> DSql["db-schema.sql"]
 
-### ⚙️ Instalación y configuración
-
-```bash
-# 1. Clonar el repositorio
-git clone https://github.com/jackson1939/spm.git
-cd spm
-
-# 2. Instalar dependencias de todo el monorepo
-npm install
+    style Apps fill:#B91C122,stroke:#B91C1C
+    style Packages fill:#57534e22,stroke:#78716c
+    style Docs fill:#0f766e22,stroke:#0f766e
 ```
 
-**3. Configurar variables de entorno** (ver también `ENV_SETUP.md`):
+### Seguridad y control de acceso
 
-Crear `apps/frontend/.env.local` (usar `apps/frontend/.env.example` como plantilla):
+Resumen del modelo de seguridad implementado, con notas honestas sobre su historial:
 
-```env
-DATABASE_URL=postgresql://USUARIO:CONTRASEÑA@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://USUARIO:CONTRASEÑA@HOST.region.aws.neon.tech/neondb?sslmode=require
-SESSION_SECRET=genera_una_cadena_larga_aleatoria
-# Opcional — usuarios adicionales sin tocar código:
-# SPM_APP_USERS_JSON=[{"username":"nuevo","password":"secreto","role":"cajero","nombre":"Mostrador"}]
-```
+- **Contraseñas:** hash HMAC-SHA256 con salt para el login del frontend (no bcrypt, no una librería de terceros) — implementación propia en `serverUsers.ts`, con comparación en tiempo constante.
+- **Sesiones:** cookie firmada con HMAC, `HttpOnly` + `SameSite=Lax` + `Secure` en producción, expiración de 12 horas, con logout automático por inactividad a los 17 minutos.
+- **RBAC de 3 roles** (`jefe`, `almacen`, `cajero`) validado en servidor (Edge Middleware) y en cliente, con degradación controlada (`localStorage`) si la verificación de red falla.
+- **Auditoría no bloqueante:** un fallo al escribir en la tabla `auditoria` nunca interrumpe la operación de negocio que la originó.
+- **Historial de git reducido:** el repositorio, tal como está clonado, expone un único commit anterior a este trabajo de documentación — `PARCHE DE SEGURIDAD 1` — lo que sugiere que en algún momento se resolvió (y se ocultó del historial) una exposición de credenciales u otro incidente de seguridad. No hay forma de auditar, desde este repo, qué contenía el historial original.
+- **Branding dual sin explicar:** la convivencia de "KIOSKO ROJO / ALLDRIX FOUNDRY" y "VEROKAI POS" dentro del mismo código (ver [¿Qué es SPM?](#qué-es-spm)) no está documentada en ningún lado del propio repositorio; se deja constancia aquí para quien continúe el mantenimiento.
 
-Crear `packages/db/.env` (mismas URLs, usadas por Prisma):
+### Estado del proyecto y roadmap
 
-```env
-DATABASE_URL=postgresql://USUARIO:CONTRASEÑA@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://USUARIO:CONTRASEÑA@HOST.region.aws.neon.tech/neondb?sslmode=require
-```
+`docs/roadmap.md` define 4 fases, pero está **desactualizado respecto al código real** — varias features que ahí figuran como pendientes ya están implementadas:
 
-(Opcional) Crear `apps/backend/.env` si se va a usar el backend Express por separado:
+- [x] Estructura del monorepo (npm workspaces, `apps/` + `packages/`).
+- [x] Base de datos configurada (Neon Postgres + Prisma + `pg`).
+- [x] Autenticación implementada — y más completa que "básica": incluye RBAC, auditoría y expiración de sesión.
+- [x] Gestión de productos (alta/edición/baja + historial de precios).
+- [x] POS / ventas con impresión de ticket y cálculo de vuelto.
+- [x] Gestión de compras a proveedores.
+- [x] Exportación a Excel y dashboard operativo.
+- [ ] Roadmap del propio repo (`docs/roadmap.md`) desactualizado — recomendable sincronizarlo con el estado real.
+- [ ] Reportes y analytics — existen páginas/endpoints, pero su cobertura funcional no fue auditada a fondo.
+- [ ] Testing automatizado — `npm run test` existe como script pero no hay suite de tests en el repo.
+- [ ] Autenticación de dos factores (mencionada en el roadmap, no implementada).
+- [ ] Unificar la capa de acceso a datos (hoy dividida entre SQL crudo en el frontend y Prisma en el backend Express).
+- [ ] Aclarar y documentar el branding dual KIOSKO ROJO / VEROKAI POS.
 
-```env
-DATABASE_URL=postgresql://USUARIO:CONTRASEÑA@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
-PORT=4000
-FRONTEND_URL=http://localhost:3000
-```
-
-**4. Generar el cliente de Prisma y ejecutar migraciones:**
-
-```bash
-npm run db:generate
-npm run db:migrate
-```
-
-### ▶️ Uso / cómo correr el proyecto
-
-**Opción A — Solo frontend (recomendado, usa las API routes de Next.js):**
-
-```bash
-npm run dev
-```
-
-Acceder en [http://localhost:3000](http://localhost:3000). Usuarios de prueba incorporados (ver `apps/frontend/lib/serverUsers.ts` para más detalle — las contraseñas reales **no** están en el repo, solo sus hashes):
-
-| Usuario | Rol | Descripción |
-|---|---|---|
-| `jefe` | `jefe` | Administrador — acceso total, incluido borrado de base de datos |
-| `almacen` | `almacen` | Encargado de almacén — inventario y compras |
-| `cajero` | `cajero` | Cajero — ventas / POS |
-| `admin` | `jefe` | Alias de administrador |
-
-**Opción B — Frontend + backend Express por separado:**
-
-```bash
-# Terminal 1
-npm run dev:backend
-
-# Terminal 2
-npm run dev:frontend
-```
-
-**Otros scripts disponibles (raíz del monorepo):**
-
-| Script | Descripción |
-|---|---|
-| `npm run build` | Compila packages y luego ambas apps |
-| `npm run build:packages` | Compila solo `packages/db`, `packages/auth`, `packages/utils` |
-| `npm run build:frontend` / `build:backend` | Compila una app específica |
-| `npm run lint` | Lint de todos los workspaces |
-| `npm run test` | Ejecuta tests en todos los workspaces (no hay tests implementados actualmente) |
-| `npm run db:generate` | Genera el cliente de Prisma |
-| `npm run db:migrate` | Ejecuta migraciones en modo desarrollo |
-| `npm run db:migrate:deploy` | Aplica migraciones en producción |
-| `npm run db:push` | Sincroniza el esquema sin generar migración |
-| `npm run db:studio` | Abre Prisma Studio (GUI de la base de datos) |
-
-### 🔐 Variables de entorno
-
-| Variable | Dónde | Obligatoria | Descripción |
-|---|---|---|---|
-| `DATABASE_URL` | frontend, `packages/db`, backend | Sí | Cadena de conexión *pooled* a PostgreSQL/Neon |
-| `DATABASE_URL_UNPOOLED` | frontend, `packages/db` | Recomendada | Cadena de conexión directa (sin pooler), usada por Prisma para migraciones |
-| `SESSION_SECRET` | frontend | Sí en producción/Vercel | Clave para firmar el token de sesión (HMAC). En local, si se omite, se usa un valor de solo-desarrollo |
-| `SPM_APP_USERS_JSON` | frontend | No | JSON con usuarios adicionales (`username`, `password`, `role`, `nombre`, `activo`) sin modificar código |
-| `PORT` | backend | No (default `4000`) | Puerto del servidor Express |
-| `FRONTEND_URL` | backend | No (default `http://localhost:3000`) | Origen permitido por CORS |
-| `NODE_ENV` / `VERCEL` | ambos | Automáticas | Determinan si se usa el driver serverless de Neon o el `Pool` de `pg` |
-
-Ninguna variable con valores reales está incluida en el repositorio; todos los `.env*` están en `.gitignore`. Ver `ENV_SETUP.md` y `VERCEL_SETUP.md` para instrucciones detalladas de configuración local y en Vercel.
-
-### 🚀 Despliegue
-
-El frontend está pensado para desplegarse en **Vercel** como monorepo. Puntos clave documentados en `VERCEL_SETUP.md`:
-
-- Es **obligatorio** configurar el *Root Directory* del proyecto en Vercel como `apps/frontend` para que Tailwind CSS compile correctamente.
-- Las variables `DATABASE_URL`, `DATABASE_URL_UNPOOLED` y `SESSION_SECRET` deben configurarse en el dashboard de Vercel (Production, Preview y Development).
-- Las migraciones de Prisma deben ejecutarse manualmente (`npm run db:migrate`) antes de usar la aplicación en producción, ya que Vercel no las corre automáticamente.
-
-### 📊 Estado del proyecto / roadmap
-
-Según `docs/roadmap.md`, el proyecto define 4 fases; en base al código actual:
-
-- **Fase 1 — Configuración inicial:** ✅ estructura del monorepo, ✅ base de datos configurada, ✅ autenticación básica implementada (más completa que "básica": incluye RBAC, auditoría y expiración de sesión).
-- **Fase 2 — Módulos core:** ✅ gestión de productos, ✅ POS/ventas, ✅ gestión de compras — todos implementados en código, aunque el roadmap los sigue marcando como pendientes.
-- **Fase 3 — Reportes y analytics:** ⚠️ parcial — existen páginas y endpoints de reportes, pero el roadmap no los marca como completos y no se auditó su cobertura funcional a fondo.
-- **Fase 4 — Mejoras futuras:** ⏳ pendiente — autenticación de dos factores, optimización de rendimiento y testing automatizado (no hay suite de tests en el repo).
-
-En resumen, el `roadmap.md` del repositorio está desactualizado respecto al código real: varias features marcadas como pendientes ya están implementadas. Se recomienda a los mantenedores actualizar ese archivo.
-
-### 📄 Licencia
+### Licencia
 
 El repositorio **no incluye un archivo `LICENSE`**. Por lo tanto:
 
 **Todos los derechos reservados — proyecto de jackson1939.** No se otorga licencia de uso, copia, modificación o distribución salvo autorización expresa del autor.
 
-### 👤 Autor / contacto
+### Autor
 
-- **GitHub:** [@jackson1939](https://github.com/jackson1939)
-- **Repositorio:** [github.com/jackson1939/spm](https://github.com/jackson1939/spm)
+<p align="left">
+  <a href="https://github.com/jackson1939"><img src="https://img.shields.io/badge/GitHub-jackson1939-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
+</p>
+
 - Repositorio relacionado (mismo autor, posible proyecto emparentado por nombre/propósito): [jackson1939/AXIS-SPM-SS](https://github.com/jackson1939/AXIS-SPM-SS)
 
 ---
 
 <a name="english"></a>
+## 🇬🇧 English
 
-## English
+### 📑 Table of contents
 
-### 📖 Overview
+- [What is SPM?](#what-is-spm)
+- [Architecture](#architecture)
+- [Sale flow](#sale-flow)
+- [Key features](#key-features)
+- [Data model](#data-model)
+- [Tech stack](#tech-stack)
+- [Project structure](#project-structure)
+- [Security and access control](#security-and-access-control)
+- [Project status and roadmap](#project-status-and-roadmap)
+- [License](#license)
+- [Author](#author)
 
-**SPM** (Sistema de Punto de Venta / Point-of-Sale System) is a business management application for small retail businesses (kiosks, mini-markets, corner stores): inventory control, POS checkout, purchases from suppliers, price history, reports, and a store configuration panel. The codebase is written almost entirely in Spanish (table names, fields, UI copy) and is designed to be operated by non-technical staff, with different access levels per employee role.
+---
 
-The code contains two commercial brand names used for the landing page and the default store configuration: **"KIOSKO ROJO"** (home page, attributed to "ALLDRIX FOUNDRY") and **"VEROKAI POS"** (default store name in `configuracion.tsx`). This suggests the codebase is a POS template reused/rebranded across different clients or brands — a common pattern when the same developer maintains several similar POS repos (for instance, [`jackson1939/AXIS-SPM-SS`](https://github.com/jackson1939/AXIS-SPM-SS) also exists under the same author and appears related by name and purpose; no direct reference or cross-dependency to it was found **within this repository**).
+### What is SPM?
 
-**Maturity level:** a working project in active development / advanced MVP. It has real authentication, role-based access control, audit logging, Excel export, receipt printing, and is deployed on Vercel — but the git history has been squashed to a single commit (`PARCHE DE SEGURIDAD 1` / "SECURITY PATCH 1"), indicating a recent security patch was applied (possible prior credential exposure, see `ENV_SETUP.md`) and that the repository does not retain its full history. No automated tests were found (`npm run test` exists as a script, but there are no test files in the repo).
+**SPM** (Sistema de Punto de Venta / Point-of-Sale System) is a business management application built for small retail businesses — kiosks, mini-markets, corner stores — that need to control inventory, run checkout, buy from suppliers, and audit everything that happens at the register, without a heavyweight ERP suite or technical staff to run it.
 
-### ✨ Key features
+The entire domain is modeled in Spanish (tables, fields, UI copy): `productos`, `ventas`, `compras`, `historial_precios`, `auditoria`. The app is meant to be operated directly by counter staff, with different permissions depending on whether the person is the owner/admin, the warehouse manager, or a cashier.
 
-- **Inventory management (products):** create, edit, delete and list products with a unique barcode, name, price, stock, category and intake date.
-- **Point of sale (POS):** record sales by product and quantity, payment methods, notes, total calculation, and receipt printing (`utils/printTicket.ts`) with change-due logic.
-- **Purchases from suppliers:** record purchases with unit cost and stock updates (`pages/compras.tsx`, `pages/api/compras.ts`).
-- **Price history:** every price change on a product is logged (`HistorialPrecio` model), allowing price variations to be audited over time.
-- **Barcode scan/lookup:** a `scan.tsx` page to find products by their barcode.
-- **Reports:** sales/inventory report views (`pages/reportes.tsx`; `docs/api-spec.md` also defines report endpoints on the Express backend).
-- **Operational dashboard:** today vs. yesterday sales, total products, low-stock alerts and monthly purchases, with data export to Excel (`xlsx` library).
-- **Custom authentication and sessions (no third-party auth library):**
-  - Username/password login, passwords stored as **HMAC-SHA256 hash + salt** (never in plain text), constant-time comparison (`crypto.timingSafeEqual`) to mitigate timing attacks.
-  - HMAC-signed session in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` in production, 12-hour expiration.
-  - Additional users configurable without touching code via the `SPM_APP_USERS_JSON` environment variable.
-  - Automatic client-side logout on inactivity (17 minutes) (`useSessionTimeout`), meant to avoid exhausting the Neon connection pool.
-- **Role-based access control (RBAC):** three roles — `jefe` (boss/admin), `almacen` (warehouse), `cajero` (cashier) — enforced both server-side (`middleware.ts`, `requireAuth`) and client-side (`useRoleGuard`, with a `localStorage` fallback if the network fails).
-- **Action auditing:** every sensitive action (login, logout, sale created, purchase created, product created/edited/deleted, config updated, migration run, database cleared) is logged to an `auditoria` table, silently (a failed audit write never blocks the main operation).
-- **Configuration panel:** store name/details, currency symbol, low-stock threshold, credentials, printer and receipt footer, all configurable (`pages/configuracion.tsx`).
-- **Admin "wipe database" endpoint:** `/api/admin/clear-database`, restricted to the `jefe` role, requiring explicit confirmation in the request body (`"BORRAR TODO"`) — an irreversible, audited action.
-- **Dual database access strategy depending on environment:**
-  - On **Vercel/production**, uses the `@neondatabase/serverless` HTTP driver, suited for serverless functions.
-  - In **local development**, uses a traditional `pg` `Pool` (TCP), with automatic fallback to Neon if the pool fails.
-- **Light/dark theme**, persisted in `localStorage` on the landing page.
-- **Standalone Express backend (optional):** exposes part of the same API (`productos`, `ventas`, `compras`, `reportes`) using **Prisma ORM** instead of raw SQL, useful as a Vercel-decoupled alternative or for future integrations.
+The codebase itself carries **two commercial brand names**, worth documenting honestly since anyone opening the repo will see them:
 
-### 🛠️ Tech stack
+- **"KIOSKO ROJO"** — branding on the landing / welcome page, attributed to **"ALLDRIX FOUNDRY"**.
+- **"VEROKAI POS"** — the default store name shipped in the configuration panel (`configuracion.tsx`).
+
+This suggests the codebase works as a **reused, rebranded POS template** for different clients or brands — a common pattern when the same developer maintains several very similar POS repos. In fact, [`jackson1939/AXIS-SPM-SS`](https://github.com/jackson1939/AXIS-SPM-SS) also exists under the same author and looks related by name and purpose — though no direct reference or cross-dependency to it was found **within this repository**.
+
+**Maturity level:** a working project in active development, closer to an **advanced MVP** than a prototype. It has real authentication, RBAC, audit logging, Excel export, receipt printing, and is already deployed on Vercel. That said, the repository's git history was squashed to a single commit visible before this documentation pass (`PARCHE DE SEGURIDAD 1` / "SECURITY PATCH 1"), indicating a recent security patch — likely for a prior credential exposure — and that the project's full history is not retained. No automated tests were found either: `npm run test` exists as a script in `package.json`, but there are no test files in the repo.
+
+### Architecture
+
+SPM is, in practice, **two applications sharing one database schema through two different access paths**: the Next.js frontend resolves its own API with raw SQL against `pg`/Neon, while an independent, optional Express backend exposes a parallel API using Prisma. There is no shared service layer between the two — they are two separate data-access implementations pointing at the same Postgres instance.
+
+```mermaid
+graph TB
+    subgraph Cliente["🧑‍💻 Client"]
+        Browser["Browser<br/>(cashier / warehouse / boss)"]
+    end
+
+    subgraph Frontend["▲ apps/frontend — Next.js 14 (Pages Router)"]
+        Pages["Pages<br/>POS · Dashboard · Purchases · Reports · Settings"]
+        MW["middleware.ts<br/>(Edge Runtime — route protection)"]
+        API["pages/api/*<br/>Own API Routes"]
+        Auth["lib/auth.ts · apiAuth.ts<br/>serverUsers.ts (HMAC-SHA256 + salt)"]
+        Audit["lib/auditoria.ts<br/>(silent logging)"]
+        DBSel["db/ — driver selector"]
+    end
+
+    subgraph BackendOpt["🔧 apps/backend — Express (optional)"]
+        Express["src/index.ts<br/>Express bootstrap + CORS + health check"]
+        Routes["src/routes/<br/>products · sales (via Prisma)"]
+    end
+
+    subgraph Packages["📦 packages/ — shared via npm workspaces"]
+        PDB["@spm/db<br/>schema.prisma + Prisma client"]
+        PAuth["@spm/auth<br/>guards + JWT strategy (placeholder)"]
+        PUtils["@spm/utils<br/>helpers and validators"]
+    end
+
+    subgraph Datos["💾 PostgreSQL — Neon"]
+        Pooled[("Serverless driver<br/>@neondatabase/serverless<br/>(production / Vercel)")]
+        Local[("`pg` Pool<br/>(local dev, TCP)")]
+        DB[("productos · ventas · compras<br/>historial_precios · auditoria")]
+    end
+
+    Browser --> MW --> Pages
+    Pages --> API
+    API --> Auth
+    API --> Audit
+    API --> DBSel
+    DBSel -->|production| Pooled --> DB
+    DBSel -->|local, falls back to Neon| Local --> DB
+
+    Express --> Routes --> PDB --> DB
+    PAuth -. used by .- API
+    PUtils -. used by .- API
+    PUtils -. used by .- Routes
+
+    style Frontend fill:#B91C1C22,stroke:#B91C1C
+    style BackendOpt fill:#7F1D1D22,stroke:#7F1D1D
+    style Datos fill:#0f766e22,stroke:#0f766e
+    style Packages fill:#57534e22,stroke:#78716c
+```
+
+> **Key note:** the frontend never calls the Express backend, or vice-versa. Both are independent entry points into the same database. The Express backend uses **Prisma** (`packages/db`) as its access layer; the Next.js API routes use **raw SQL** through whichever driver fits the environment (`@neondatabase/serverless` on Vercel, `pg.Pool` with a Neon fallback locally). Keeping the schema in sync across both access paths is a manual responsibility for whoever changes the data model.
+
+### Sale flow
+
+A typical end-to-end checkout cycle:
+
+```mermaid
+sequenceDiagram
+    actor Cashier
+    participant UI as POS (Next.js)
+    participant MW as middleware.ts
+    participant API as /api/ventas
+    participant DB as Neon Postgres
+    participant Aud as auditoria
+
+    Cashier->>UI: Scans / searches product (barcode)
+    UI->>API: GET /api/productos?codigo=...
+    API->>DB: SELECT on `productos`
+    DB-->>API: price, stock, name
+    API-->>UI: Product data
+    Cashier->>UI: Confirms quantity, payment method, total
+    UI->>MW: Authenticated request (HMAC session cookie)
+    MW->>MW: Verifies role (cajero / almacen / jefe)
+    MW->>API: POST /api/ventas
+    API->>DB: INSERT into `ventas` + UPDATE stock on `productos`
+    API->>Aud: Logs "sale created" (silent, non-blocking)
+    DB-->>API: OK
+    API-->>UI: Sale recorded
+    UI->>Cashier: Prints receipt (printTicket.ts) + calculates change
+```
+
+### Key features
+
+**Inventory management**
+- Create, edit, delete and browse products with a **unique barcode**, name, price, stock, category and intake date.
+- **Price history** (`HistorialPrecio`): every price change is logged, allowing variations to be audited over time.
+- Product search/scan by barcode (`pages/scan.tsx`).
+
+**Point of sale (POS) and purchases**
+- Record sales by product and quantity, payment methods, notes, automatic total and **change-due** calculation.
+- Receipt printing (`utils/printTicket.ts`).
+- Supplier purchase logging with unit cost and automatic stock updates (`pages/compras.tsx`, `pages/api/compras.ts`).
+
+**Reports and dashboard**
+- Sales and inventory report views (`pages/reportes.tsx`); `docs/api-spec.md` also documents report endpoints on the Express backend.
+- Operational dashboard: today vs. yesterday sales, total products, low-stock alerts, monthly purchases.
+- **Excel export** of operational data (`xlsx` / SheetJS library).
+
+**Custom authentication and sessions — no third-party auth library**
+- Username/password login with **HMAC-SHA256 + salt** hashing (never plain text) and constant-time comparison (`crypto.timingSafeEqual`) to mitigate timing attacks.
+- HMAC-signed session in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` in production, **12-hour** expiration.
+- Extra users configurable without touching code via the `SPM_APP_USERS_JSON` environment variable.
+- Automatic logout on inactivity (**17 minutes**, `useSessionTimeout`), explicitly meant to avoid exhausting the Neon connection pool.
+
+**Role-based access control (RBAC)**
+- Three roles — `jefe` (boss/admin), `almacen` (warehouse), `cajero` (cashier) — enforced **both server-side** (`middleware.ts`, `requireAuth`) **and client-side** (`useRoleGuard`, with a `localStorage` fallback if the network fails).
+
+**Action auditing**
+- Every sensitive action (login, logout, sale created, purchase created, product created/edited/deleted, config updated, migration run, database cleared) is logged to the `auditoria` table, silently: a failed audit write never blocks the underlying business operation.
+
+**Configuration panel**
+- Store name/details, currency symbol, low-stock threshold, credentials, printer, and receipt footer — all configurable from `pages/configuracion.tsx`.
+
+**Admin "wipe database" endpoint**
+- `/api/admin/clear-database`, restricted to the `jefe` role, requires explicit confirmation in the request body (`"BORRAR TODO"`) — an irreversible, audited action.
+
+**Dual database strategy per environment**
+- On **Vercel/production**: the `@neondatabase/serverless` HTTP driver, suited for serverless functions.
+- In **local development**: a traditional `pg` `Pool` (TCP), with automatic fallback to Neon if the pool fails.
+
+**Standalone Express backend (optional)**
+- Exposes part of the same API (`productos`, `ventas`, `compras`, `reportes`) using **Prisma ORM** instead of raw SQL — useful as a Vercel-decoupled alternative or as a base for future integrations.
+
+**UI details**
+- Light/dark theme persisted in `localStorage` on the landing page.
+
+### Data model
+
+The real model, defined in `packages/db/prisma/schema.prisma`, plus the `auditoria` table, which is **not** modeled in Prisma and is written via raw SQL from `lib/auditoria.ts`:
+
+```mermaid
+erDiagram
+    PRODUCTO {
+        int id PK
+        string codigo_barras UK
+        string nombre
+        float precio
+        int stock
+        string categoria
+        datetime fecha_ingreso
+    }
+    COMPRA {
+        int id PK
+        int producto_id FK
+        int cantidad
+        float costo_unitario
+        datetime fecha
+    }
+    VENTA {
+        int id PK
+        int producto_id FK
+        int cantidad
+        float precio_unitario
+        float total
+        string metodo_pago
+        string notas
+        datetime fecha
+    }
+    HISTORIAL_PRECIO {
+        int id PK
+        int producto_id FK
+        float precio_anterior
+        float precio_nuevo
+        datetime fecha
+    }
+    AUDITORIA {
+        int id PK
+        string accion
+        string usuario
+        string rol
+        datetime fecha
+        string detalle
+    }
+
+    PRODUCTO ||--o{ COMPRA : "received via"
+    PRODUCTO ||--o{ VENTA : "sold in"
+    PRODUCTO ||--o{ HISTORIAL_PRECIO : "logs changes of"
+```
+
+> `HISTORIAL_PRECIO` cascades on delete from `PRODUCTO`. `AUDITORIA` is a standalone table with no formal relations in the Prisma schema — it is populated outside the ORM, exclusively via raw SQL from the Next.js backend.
+
+### Tech stack
 
 | Category | Technology / Library | Version |
 |---|---|---|
@@ -304,182 +600,93 @@ The code contains two commercial brand names used for the landing page and the d
 | Monorepo manager | npm workspaces | npm ≥ 9 |
 | Deployment | Vercel | — |
 
-> Note: password hashing for the **frontend login** (`serverUsers.ts`) uses Node's native `crypto.createHmac`, not `bcrypt` — `bcrypt` only appears as a dependency of the Express backend.
+> Password hashing for the **frontend login** (`serverUsers.ts`) uses Node's native `crypto.createHmac`, **not** `bcrypt` — `bcrypt` only appears as a dependency of the Express backend, which uses a different auth mechanism entirely (a JWT placeholder in `@spm/auth`).
 
-### 🏗️ Architecture and folder structure
+### Project structure
 
-```
-SPM/
-├── apps/
-│   ├── frontend/                # Next.js 14 — main app (UI + API routes)
-│   │   ├── pages/                # Page routes (POS, dashboard, login, reports, etc.)
-│   │   │   └── api/               # API routes: auth, products, sales, purchases, admin, migrate
-│   │   ├── components/           # Shared components (Layout, AccesoDenegado)
-│   │   ├── hooks/                 # useRoleGuard (RBAC), useSessionTimeout (auto-logout)
-│   │   ├── lib/                   # auth.ts, apiAuth.ts, serverUsers.ts, auditoria.ts (server-only)
-│   │   ├── utils/                 # formatPrecio, printTicket, exportExcel
-│   │   ├── db/                    # Database driver selector (pg vs. Neon serverless)
-│   │   └── middleware.ts          # Route protection at the Edge Runtime level
-│   └── backend/                  # Standalone Express server (optional, uses Prisma)
-│       ├── src/index.ts           # Express bootstrap, CORS, logging, health check
-│       ├── src/routes/            # Products/sales routes via Prisma
-│       ├── pages/api/             # Alternate route set (purchases, products, reports, sales)
-│       ├── db/                    # Config and reference SQL schema
-│       └── scripts/                # migrate.js, test-connection.js
-├── packages/
-│   ├── db/                       # @spm/db package — schema.prisma + exported Prisma client
-│   ├── auth/                     # @spm/auth package — strategies (JWT placeholder) and guards
-│   └── utils/                    # @spm/utils package — shared helpers and validators
-├── docs/                         # Technical docs (architecture, API spec, roadmap, reference SQL schema)
-├── scripts/                      # One-off SQL scripts (fix-compras-table.sql)
-├── vercel.json                   # Monorepo build/deploy configuration for Vercel
-└── package.json                  # npm workspaces orchestration
-```
+```mermaid
+graph TD
+    Root["SPM/ (npm workspaces monorepo)"] --> Apps["apps/"]
+    Root --> Packages["packages/"]
+    Root --> Docs["docs/"]
+    Root --> Scripts["scripts/"]
+    Root --> Vercel["vercel.json"]
 
-**Data model (Prisma — `packages/db/prisma/schema.prisma`):**
+    Apps --> FE["frontend/ — Next.js 14"]
+    Apps --> BE["backend/ — Express (optional)"]
 
-- `Producto` → `productos` table (unique barcode, name, price, stock, category, intake date; relations to purchases, sales and price history).
-- `Compra` → `compras` table (product, quantity, unit cost, date).
-- `Venta` → `ventas` table (product, quantity, unit price, total, payment method, notes, date).
-- `HistorialPrecio` → `historial_precios` table (old/new price per product, cascade delete).
-- Additional `auditoria` table (not modeled in Prisma, written via raw SQL from `lib/auditoria.ts`).
+    FE --> FEPages["pages/<br/>POS · dashboard · login · reports · purchases · scan · settings"]
+    FEPages --> FEApi["pages/api/<br/>auth · products · sales · purchases · admin · migrate"]
+    FE --> FEComp["components/<br/>Layout, AccesoDenegado"]
+    FE --> FEHooks["hooks/<br/>useRoleGuard · useSessionTimeout"]
+    FE --> FELib["lib/<br/>auth.ts · apiAuth.ts · serverUsers.ts · auditoria.ts"]
+    FE --> FEUtils["utils/<br/>formatPrecio · printTicket · exportExcel"]
+    FE --> FEDb["db/<br/>pg vs Neon serverless selector"]
+    FE --> FEMw["middleware.ts<br/>Edge Runtime"]
 
-**Important note on data access:** the frontend (`apps/frontend/pages/api/`) accesses the database with **raw SQL via `pg`/Neon**, while the Express backend (`apps/backend/src/routes/`) uses **Prisma**. Both point at the same schema/database but are two independent access layers — keep this in mind when changing the schema.
+    BE --> BESrc["src/index.ts<br/>Express bootstrap"]
+    BE --> BERoutes["src/routes/<br/>products, sales via Prisma"]
+    BE --> BEApi["pages/api/<br/>alternate purchases/products/reports/sales"]
+    BE --> BEDb["db/<br/>config + reference SQL schema"]
+    BE --> BEScripts["scripts/<br/>migrate.js · test-connection.js"]
 
-### ✅ Prerequisites
+    Packages --> PDb["db/ — @spm/db<br/>schema.prisma + Prisma client"]
+    Packages --> PAuth["auth/ — @spm/auth<br/>strategies (JWT placeholder) + guards"]
+    Packages --> PUtils["utils/ — @spm/utils<br/>helpers + validators"]
 
-- Node.js ≥ 18.0.0
-- npm ≥ 9.0.0
-- A PostgreSQL database — the project is specifically designed for **[Neon](https://neon.tech)** (uses its serverless driver in production), though any compatible PostgreSQL instance works for local development via `pg`.
+    Docs --> DArch["arquitectura.md"]
+    Docs --> DApi["api-spec.md"]
+    Docs --> DRoad["roadmap.md"]
+    Docs --> DSql["db-schema.sql"]
 
-### ⚙️ Installation and setup
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/jackson1939/spm.git
-cd spm
-
-# 2. Install monorepo dependencies
-npm install
+    style Apps fill:#B91C122,stroke:#B91C1C
+    style Packages fill:#57534e22,stroke:#78716c
+    style Docs fill:#0f766e22,stroke:#0f766e
 ```
 
-**3. Configure environment variables** (see also `ENV_SETUP.md`):
+### Security and access control
 
-Create `apps/frontend/.env.local` (use `apps/frontend/.env.example` as a template):
+A summary of the implemented security model, with honest notes on its history:
 
-```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://USER:PASSWORD@HOST.region.aws.neon.tech/neondb?sslmode=require
-SESSION_SECRET=generate_a_long_random_string
-# Optional — extra users without touching code:
-# SPM_APP_USERS_JSON=[{"username":"new","password":"secret","role":"cajero","nombre":"Front desk"}]
-```
+- **Passwords:** HMAC-SHA256 hashing with salt for the frontend login (no bcrypt, no third-party library) — a custom implementation in `serverUsers.ts`, with constant-time comparison.
+- **Sessions:** HMAC-signed cookie, `HttpOnly` + `SameSite=Lax` + `Secure` in production, 12-hour expiration, with automatic logout on 17 minutes of inactivity.
+- **3-role RBAC** (`jefe`, `almacen`, `cajero`) validated server-side (Edge Middleware) and client-side, with controlled degradation (`localStorage`) if the network check fails.
+- **Non-blocking auditing:** a failure writing to the `auditoria` table never interrupts the business operation that triggered it.
+- **Squashed git history:** the repository, as cloned, exposes a single commit predating this documentation work — `PARCHE DE SEGURIDAD 1` ("SECURITY PATCH 1") — suggesting that at some point a credential exposure or other security incident was resolved (and hidden from history). There is no way to audit, from this repo alone, what the original history contained.
+- **Unexplained dual branding:** the coexistence of "KIOSKO ROJO / ALLDRIX FOUNDRY" and "VEROKAI POS" within the same codebase (see [What is SPM?](#what-is-spm)) is not documented anywhere in the repository itself; it is noted here for whoever continues maintaining it.
 
-Create `packages/db/.env` (same URLs, used by Prisma):
+### Project status and roadmap
 
-```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
-DATABASE_URL_UNPOOLED=postgresql://USER:PASSWORD@HOST.region.aws.neon.tech/neondb?sslmode=require
-```
+`docs/roadmap.md` defines 4 phases, but it is **out of date relative to the actual code** — several features listed there as pending are already implemented:
 
-(Optional) Create `apps/backend/.env` if the Express backend will be used separately:
+- [x] Monorepo structure (npm workspaces, `apps/` + `packages/`).
+- [x] Database configured (Neon Postgres + Prisma + `pg`).
+- [x] Authentication implemented — and more complete than "basic": includes RBAC, auditing, and session expiration.
+- [x] Product management (create/edit/delete + price history).
+- [x] POS / sales with receipt printing and change-due calculation.
+- [x] Supplier purchase management.
+- [x] Excel export and operational dashboard.
+- [ ] The repo's own roadmap (`docs/roadmap.md`) is stale — worth syncing with actual status.
+- [ ] Reports and analytics — pages/endpoints exist, but functional coverage was not deeply audited.
+- [ ] Automated testing — `npm run test` exists as a script but there is no test suite in the repo.
+- [ ] Two-factor authentication (mentioned in the roadmap, not implemented).
+- [ ] Unify the data access layer (currently split between raw SQL in the frontend and Prisma in the Express backend).
+- [ ] Clarify and document the dual KIOSKO ROJO / VEROKAI POS branding.
 
-```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST-pooler.region.aws.neon.tech/neondb?sslmode=require
-PORT=4000
-FRONTEND_URL=http://localhost:3000
-```
-
-**4. Generate the Prisma client and run migrations:**
-
-```bash
-npm run db:generate
-npm run db:migrate
-```
-
-### ▶️ Usage / running the project
-
-**Option A — Frontend only (recommended, uses Next.js API routes):**
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000). Built-in test users (see `apps/frontend/lib/serverUsers.ts` for details — real passwords are **not** in the repo, only their hashes):
-
-| User | Role | Description |
-|---|---|---|
-| `jefe` | `jefe` | Admin — full access, including database wipe |
-| `almacen` | `almacen` | Warehouse manager — inventory and purchases |
-| `cajero` | `cajero` | Cashier — sales / POS |
-| `admin` | `jefe` | Admin alias |
-
-**Option B — Frontend + separate Express backend:**
-
-```bash
-# Terminal 1
-npm run dev:backend
-
-# Terminal 2
-npm run dev:frontend
-```
-
-**Other available scripts (monorepo root):**
-
-| Script | Description |
-|---|---|
-| `npm run build` | Builds packages, then both apps |
-| `npm run build:packages` | Builds only `packages/db`, `packages/auth`, `packages/utils` |
-| `npm run build:frontend` / `build:backend` | Builds a specific app |
-| `npm run lint` | Lints all workspaces |
-| `npm run test` | Runs tests across workspaces (no tests currently implemented) |
-| `npm run db:generate` | Generates the Prisma client |
-| `npm run db:migrate` | Runs migrations in dev mode |
-| `npm run db:migrate:deploy` | Deploys migrations to production |
-| `npm run db:push` | Syncs the schema without creating a migration |
-| `npm run db:studio` | Opens Prisma Studio (database GUI) |
-
-### 🔐 Environment variables
-
-| Variable | Where | Required | Description |
-|---|---|---|---|
-| `DATABASE_URL` | frontend, `packages/db`, backend | Yes | Pooled PostgreSQL/Neon connection string |
-| `DATABASE_URL_UNPOOLED` | frontend, `packages/db` | Recommended | Direct (non-pooled) connection string, used by Prisma for migrations |
-| `SESSION_SECRET` | frontend | Yes in production/Vercel | Key used to sign the session token (HMAC). Locally, a dev-only fallback value is used if omitted |
-| `SPM_APP_USERS_JSON` | frontend | No | JSON with extra users (`username`, `password`, `role`, `nombre`, `activo`) without modifying code |
-| `PORT` | backend | No (default `4000`) | Express server port |
-| `FRONTEND_URL` | backend | No (default `http://localhost:3000`) | CORS-allowed origin |
-| `NODE_ENV` / `VERCEL` | both | Automatic | Determine whether the Neon serverless driver or the `pg` `Pool` is used |
-
-No variable with real values is included in the repository; all `.env*` files are in `.gitignore`. See `ENV_SETUP.md` and `VERCEL_SETUP.md` for detailed local and Vercel setup instructions.
-
-### 🚀 Deployment
-
-The frontend is designed to be deployed on **Vercel** as a monorepo. Key points documented in `VERCEL_SETUP.md`:
-
-- Setting the Vercel project's **Root Directory** to `apps/frontend` is **mandatory** for Tailwind CSS to compile correctly.
-- `DATABASE_URL`, `DATABASE_URL_UNPOOLED` and `SESSION_SECRET` must be configured in the Vercel dashboard (Production, Preview and Development).
-- Prisma migrations must be run manually (`npm run db:migrate`) before using the app in production, since Vercel does not run them automatically.
-
-### 📊 Project status / roadmap
-
-Per `docs/roadmap.md`, the project defines 4 phases; based on the actual code:
-
-- **Phase 1 — Initial setup:** ✅ monorepo structure, ✅ database configured, ✅ basic auth implemented (actually more complete than "basic": includes RBAC, auditing and session expiration).
-- **Phase 2 — Core modules:** ✅ product management, ✅ POS/sales, ✅ purchase management — all implemented in code, though the roadmap still lists them as pending.
-- **Phase 3 — Reports and analytics:** ⚠️ partial — report pages and endpoints exist, but the roadmap doesn't mark them complete and their functional coverage was not deeply audited.
-- **Phase 4 — Future improvements:** ⏳ pending — two-factor authentication, performance optimization, and automated testing (no test suite exists in the repo).
-
-In short, the repository's `roadmap.md` is out of date relative to the actual code: several features marked as pending are already implemented. Maintainers are encouraged to update that file.
-
-### 📄 License
+### License
 
 The repository **does not include a `LICENSE` file**. Therefore:
 
 **All rights reserved — a project by jackson1939.** No license to use, copy, modify or distribute is granted without the author's express permission.
 
-### 👤 Author / contact
+### Author
 
-- **GitHub:** [@jackson1939](https://github.com/jackson1939)
-- **Repository:** [github.com/jackson1939/spm](https://github.com/jackson1939/spm)
+<p align="left">
+  <a href="https://github.com/jackson1939"><img src="https://img.shields.io/badge/GitHub-jackson1939-181717?style=for-the-badge&logo=github&logoColor=white"/></a>
+</p>
+
 - Related repository (same author, possibly related by name/purpose): [jackson1939/AXIS-SPM-SS](https://github.com/jackson1939/AXIS-SPM-SS)
+
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:7F1D1D,100:B91C1C&height=120&section=footer" width="100%"/>
+</p>
